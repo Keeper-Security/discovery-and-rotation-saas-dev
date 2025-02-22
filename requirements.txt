@@ -1,0 +1,7 @@
+setuptools
+cryptography>=42.0.4
+keeper-secrets-manager-core>=16.5.4
+keeper-secrets-manager-helper
+click
+pydantic
+colorama
