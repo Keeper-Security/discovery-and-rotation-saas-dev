@@ -13,14 +13,16 @@ class Log:
 
         Log._logger = logging.getLogger(Log._name)
 
-        for handler in Log._logger.handlers[:]:
-            Log._logger.removeHandler(handler)
-        handler = logging.StreamHandler()
-        Log._logger.addHandler(handler)
+        print(Log._logger.hasHandlers())
+        Log._logger.propagate = False
 
-        # Try to match what the gateway sets. We include the thread id.
-        formatter = logging.Formatter(f'%(asctime)s %(name)s  %(levelname)s: %(message)s')
-        handler.setFormatter(formatter)
+        if Log._logger.hasHandlers() is False:
+            handler = logging.StreamHandler()
+            Log._logger.addHandler(handler)
+
+            # Try to match what the gateway sets. We include the thread id.
+            formatter = logging.Formatter(f'%(asctime)s %(name)s  %(levelname)s: %(message)s')
+            handler.setFormatter(formatter)
 
         level = kwargs.get("level")
         if level is not None:
