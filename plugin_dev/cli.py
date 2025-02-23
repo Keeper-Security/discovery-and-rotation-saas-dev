@@ -1,3 +1,4 @@
+from __future__ import annotations
 import click
 import importlib.util
 from kdnrm.log import Log
@@ -5,29 +6,91 @@ from kdnrm.saas_type import SaasUser, Field
 from kdnrm.secret import Secret
 from keeper_secrets_manager_core import SecretsManager
 from keeper_secrets_manager_core.storage import FileKeyValueStorage
+from keeper_secrets_manager_core.core import RecordCreate
+from keeper_secrets_manager_core.dto.dtos import RecordField, Record
 from keeper_secrets_manager_core.utils import generate_password
 import traceback
 import sys
+import os
 from colorama import Fore, Style
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
+    from kdnrm.saas_type import SaasConfigItem
 
 
 def load_module_from_path(module_name, file_path):
+
+    if os.path.exists(file_path) is False:
+        raise Exception(f"The plugin {file_path} does not exist.")
+
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
+def _get_field_value(item: SaasConfigItem) -> dict:
+
+    req = f"{Fore.RED}Required:{Style.RESET_ALL}"
+    if item.required is False:
+        req = f"{Fore.BLUE}Optional:{Style.RESET_ALL}"
+
+    print(f"{req} {item.label}")
+    print(f"{item.desc}")
+    default = ""
+    if item.default_value is not None:
+        default = f" (default: {item.default_value})"
+    value = input(f"Enter Value {default}: > ")
+    field_args = {
+        "type": item.type,
+        "label": item.label,
+        "value": []
+    }
+    if value is not None:
+        field_args["value"] = [value]
+
+    print("")
+
+    return field_args
+
+
 @click.command(name="config")
 @click.option('--file', '-f', type=str, help='Plugin python file', required=True)
-def config_command(file):
+@click.option('--shared-folder-uid', '-s', type=str, help='Shared folder UID', required=True)
+@click.option('--title', '-t', type=str, help='SaaS config record tile', required=True)
+def config_command(file, shared_folder_uid, title):
     """Create a config file"""
 
-    pass
+    Log()
+    Log.set_log_level("INFO")
+
+    module = load_module_from_path("test_plugin", file)
+    plugin = getattr(module, "SaasPlugin")
+    schema = getattr(plugin, "config_schema")()
+
+    fields = []
+
+    for item in schema:  # type: SaasConfigItem
+        if item.required is True:
+            fields.append(_get_field_value(item))
+
+    for item in schema:  # type: SaasConfigItem
+        if item.required is False:
+            fields.append(_get_field_value(item))
+
+    print(fields)
+
+    storage = FileKeyValueStorage()
+    sm = SecretsManager(config=storage)
+
+    new_record = RecordCreate("login", title=title)
+    new_record.fields = []
+    new_record.custom = fields
+    record_uid = sm.create_secret(shared_folder_uid, new_record)
+
+    print(f"{Fore.GREEN}Configuration record UID is {record_uid}{Style.RESET_ALL}")
 
 
 @click.command(name="run")
@@ -164,5 +227,9 @@ cli.add_command(config_command)
 cli.add_command(run_command)
 
 
-if __name__ == '__main__':
+def main():
     cli()
+
+
+if __name__ == '__main__':
+    main()
