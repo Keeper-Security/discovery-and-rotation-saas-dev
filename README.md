@@ -21,8 +21,22 @@ cd discovery-and-rotation-saas-dev
 pip install .
 cd ..
 
-cp discovery-and-rotation-saas-dev/exmaples/hello_world.py
-plugin_test config -f hello_world.py -t "Hello World Config"
-plugin_test run -f hello_world.py -u USER_RECROD_UID -c USER_RECORD_
-
+cp discovery-and-rotation-saas-dev/exmaples/hello_world.py .
+plugin_test config -f hello_world.py -t "Hello World Config" -s SHARED_FOLDER_UID
+plugin_test run -f hello_world.py -u USER_RECROD_UID -c CONFIG_RECORD_UID
 ```
+
+
+## Steps
+
+## Work Directory
+
+To keep a clean environment, create a directory to work inside.
+
+### Make a device configuration
+
+This development environment will need access to the Vault.
+This is done using KSM. 
+Using KSM requires a configuration. 
+In the Vault, under **Secret Manager** find the **Application** the gateway uses and create a new device.
+Download the JSON configuration.
