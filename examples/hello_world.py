@@ -1,5 +1,5 @@
 from __future__ import annotations
-from kdnrm.rotation.saas_plugins import SaasPluginBase
+from kdnrm.saas_plugins import SaasPluginBase
 from kdnrm.saas_type import SaasConfigItem, ReturnCustomField
 from kdnrm.log import Log
 from typing import List, TYPE_CHECKING
@@ -37,7 +37,7 @@ class SaasPlugin(SaasPluginBase):
     def can_rollback(self):
         return True
 
-    def run(self):
+    def change_password(self):
 
         Log.info("starting rotating of the Hello World user")
 
@@ -52,7 +52,7 @@ class SaasPlugin(SaasPluginBase):
 
         Log.info("rotating the user in Hello World was a success")
 
-    def rollback(self):
+    def rollback_password(self):
 
         Log.info("starting rollback of the Hello World user")
 

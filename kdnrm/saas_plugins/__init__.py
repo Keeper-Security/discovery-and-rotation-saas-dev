@@ -167,14 +167,14 @@ class SaasPluginBase:
 
         self.return_fields.append(field)
 
-    def run(self):
+    def change_password(self):
         """
         Perform the password rotation.
         """
 
         pass
 
-    def rollback(self):
+    def rollback_password(self):
         """
         Attempt to revert the password after a failure.
         """
