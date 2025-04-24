@@ -2,10 +2,8 @@ from __future__ import annotations
 from kdnrm.saas_plugins import SaasPluginBase
 from kdnrm.saas_type import SaasConfigItem, ReturnCustomField
 from kdnrm.log import Log
+from kdnrm.secret import Secret
 from typing import List, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from kdnrm.secret import Secret
 
 
 class SaasPlugin(SaasPluginBase):
