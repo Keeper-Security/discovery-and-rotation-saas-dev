@@ -12,8 +12,6 @@ class Log:
     def __init__(self, **kwargs):
 
         Log._logger = logging.getLogger(Log._name)
-
-        print(Log._logger.hasHandlers())
         Log._logger.propagate = False
 
         if Log._logger.hasHandlers() is False:

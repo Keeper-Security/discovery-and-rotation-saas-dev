@@ -7,7 +7,6 @@ from kdnrm.secret import Secret
 from keeper_secrets_manager_core import SecretsManager
 from keeper_secrets_manager_core.storage import FileKeyValueStorage
 from keeper_secrets_manager_core.core import RecordCreate
-from keeper_secrets_manager_core.dto.dtos import RecordField, Record
 from keeper_secrets_manager_core.utils import generate_password
 import traceback
 import sys
@@ -60,7 +59,8 @@ def _get_field_value(item: SaasConfigItem) -> dict:
 @click.option('--file', '-f', type=str, help='Plugin python file', required=True)
 @click.option('--shared-folder-uid', '-s', type=str, help='Shared folder UID', required=True)
 @click.option('--title', '-t', type=str, help='SaaS config record tile', required=True)
-def config_command(file, shared_folder_uid, title):
+@click.option('--config', type=str, help='KSM configuration file', required=False)
+def config_command(file, shared_folder_uid, title, config):
     """Create a config file"""
 
     Log()
@@ -70,7 +70,13 @@ def config_command(file, shared_folder_uid, title):
     plugin = getattr(module, "SaasPlugin")
     schema = getattr(plugin, "config_schema")()
 
-    fields = []
+    fields = [
+        {
+            "label": "SaaS Type",
+            "type": "text",
+            "value": [plugin.name]
+        }
+    ]
 
     for item in schema:  # type: SaasConfigItem
         if item.required is True:
@@ -80,7 +86,9 @@ def config_command(file, shared_folder_uid, title):
         if item.required is False:
             fields.append(_get_field_value(item))
 
-    print(fields)
+    if config is None:
+        config = "config.json"
+    FileKeyValueStorage.default_config_file_location = config
 
     storage = FileKeyValueStorage()
     sm = SecretsManager(config=storage)
@@ -99,16 +107,22 @@ def config_command(file, shared_folder_uid, title):
 @click.option('--plugin-config-uid', '-c', type=str, help='UID of plugin config record', required=True)
 @click.option('--configuration-uid', type=str, help='UID of configuration record', required=False)
 @click.option('--fail', is_flag=True, help="Force run to fail")
-@click.option('--password/--no-password', default=True, help="Enable or disable password rotation.")
-@click.option('--pkey/--no-pkey', default=False, help="Enable or disable private key rotation.")
 @click.option('--new-password',  type=str, help="New password")
-def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, password, pkey, new_password):
+@click.option('--old-password',  type=str, help="Old password")
+@click.option('--no-old-password', is_flag=True, help="Do not use old password")
+@click.option('--config', type=str, help='KSM configuration file', required=False)
+def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_password, old_password,
+                no_old_password, config):
     """Run the plugin"""
 
     Log()
     Log.set_log_level("DEBUG")
 
     try:
+        if config is None:
+            config = "config.json"
+        FileKeyValueStorage.default_config_file_location = config
+
         storage = FileKeyValueStorage()
         sm = SecretsManager(config=storage)
 
@@ -127,7 +141,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, pass
         if config_record is None:
             raise Exception("Could not get the plugin config record.")
 
-        if new_password is None and password is True:
+        if new_password is None:
             new_password = generate_password()
 
         try:
@@ -141,10 +155,15 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, pass
                     )
                 )
 
+            if old_password is None:
+                old_password = user_record.get_standard_field_value("password", single=True),
+            if no_old_password is True:
+                old_password = None
+
             user = SaasUser(
                 username=Secret(user_record.get_standard_field_value("login", single=True)),
                 new_password=Secret(new_password) if new_password is not None else None,
-                prior_password=Secret(user_record.get_standard_field_value("password", single=True)),
+                prior_password=Secret(old_password),
                 fields=fields
             )
         except Exception as err:
@@ -157,7 +176,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, pass
             force_fail=fail
         )
         try:
-            plugin.run()
+            plugin.change_password()
 
             if plugin.force_fail is True:
                 raise Exception("FORCE FAIL FLAG SET")
@@ -168,12 +187,12 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, pass
                 fields = []
                 for item in plugin.return_fields:
                     value = Secret.get_value(item.value) or ""
+                    Log.debug(f"setting the return custom field '{item.label}' to value '{value}'")
                     fields.append({
                         "type": item.type,
                         "label": item.label,
                         "value": [value]
                     })
-                Log.debug(fields)
 
                 if user_record.dict.get("custom") is None:
                     user_record.dict["custom"] = []
@@ -182,27 +201,35 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, pass
                     found_field = next((x for x in user_record.dict["custom"] if x.get("label") == field.get("label")),
                                        None)
                     if found_field is not None:
-                        Log.debug("found existing field, updating type and value")
+                        Log.debug(f"found existing '{field['label']}' custom field in user record, "
+                                  "updating type and value")
                         found_field["value"] = field["value"]
                         found_field["type"] = field["type"]
                     else:
-                        Log.debug("field not found, adding field")
+                        Log.debug(f"custom field '{field['label']}' does not exist in user record, adding custom field")
                         user_record.dict["custom"].append(field)
 
                 Log.debug("updating the user record.")
                 user_record.set_standard_field_value("password", new_password)
-                user_record._update()
+                getattr(user_record, "_update")()
                 sm.save(user_record)
 
                 print(f"{Fore.GREEN}Rotation was successful{Style.RESET_ALL}")
 
         except Exception as err:
+            Log.traceback(err)
             Log.error(f"got exception: {err}")
 
             if plugin.can_rollback is True:
-                plugin.rollback()
+                try:
+                    plugin.rollback_password()
+                    print(f"{Fore.YELLOW}Rotation failed, Rollback was successful{Style.RESET_ALL}")
+                except Exception as err:
+                    Log.traceback(err)
+                    print(f"{Fore.RED}Rotation and rollback were NOT successful{Style.RESET_ALL}")
             else:
                 Log.info("the plugin cannot rollback/revert the password")
+                print(f"{Fore.RED}Rotation was NOT successful{Style.RESET_ALL}")
 
     except Exception as err:
 
@@ -215,7 +242,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, pass
         if exc is not None:
             msg += '  ' + traceback.format_exc().lstrip(trc)
         print(msg)
-        print(f"{Fore.RED}ERROR: {err}{Style.RESET_ALL}")
+        print(f"{Fore.RED}TEST ENV ERROR: {err}{Style.RESET_ALL}")
 
 
 @click.group()
