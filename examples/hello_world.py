@@ -3,7 +3,7 @@ from kdnrm.saas_plugins import SaasPluginBase
 from kdnrm.saas_type import SaasConfigItem, ReturnCustomField
 from kdnrm.log import Log
 from kdnrm.secret import Secret
-from typing import List, TYPE_CHECKING
+from typing import List
 
 
 class SaasPlugin(SaasPluginBase):
@@ -54,6 +54,6 @@ class SaasPlugin(SaasPluginBase):
 
         Log.info("starting rollback of the Hello World user")
 
-        # Add code to roll back what run() did.
+        # Add code to roll back what change_password() did.
 
         Log.info("rolling back the user in Hello World was a success")

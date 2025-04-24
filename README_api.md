@@ -486,7 +486,7 @@ It used the attribute `user` to get information about the user, password, old pa
 
 ### rollback_password()
 
-This method is called to rollback/revert to old password.
+This method is called to rollback/revert back to old password.
 To use, include in method in your plugin to override the default method.
 Similar to `change_password`, it uses the attribute `user` to get information about the user, password, old password, etc.
 

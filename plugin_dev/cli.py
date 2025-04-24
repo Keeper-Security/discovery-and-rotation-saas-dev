@@ -2,8 +2,9 @@ from __future__ import annotations
 import click
 import importlib.util
 from kdnrm.log import Log
-from kdnrm.saas_type import SaasUser, Field
+from kdnrm.saas_type import SaasUser, Field, AwsConfig, AzureConfig, DomainConfig, NetworkConfig
 from kdnrm.secret import Secret
+from kdnrm.utils import value_to_boolean
 from keeper_secrets_manager_core import SecretsManager
 from keeper_secrets_manager_core.storage import FileKeyValueStorage
 from keeper_secrets_manager_core.core import RecordCreate
@@ -12,7 +13,7 @@ import traceback
 import sys
 import os
 from colorama import Fore, Style
-from typing import TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
@@ -118,6 +119,21 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
     Log()
     Log.set_log_level("DEBUG")
 
+    def _gfv(record: Record, label: str, is_secret=False) -> Optional[Any]:
+
+        for access in ["get_standard_field_value", "get_custom_field_value"]:
+            try:
+                field_value = getattr(record, access)(label, single=True)
+                if field_value is None:
+                    return None
+                if is_secret is False:
+                    return field_value
+                else:
+                    return Secret(field_value)
+            except (Exception,):
+                pass
+        return None
+
     try:
         if config is None:
             config = "config.json"
@@ -134,7 +150,58 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
 
         user_record = next((x for x in records if x.uid == user_uid), None)  # type: Record
         config_record = next((x for x in records if x.uid == plugin_config_uid), None)  # type: Record
+
+        provider_config = None
         provider_record = next((x for x in records if x.uid == configuration_uid), None)  # type: Record
+        if provider_record is not None:
+            if provider_record.type == "pamAwsConfiguration":
+                provider_config = AwsConfig(
+                    aws_access_key_id=_gfv(provider_record, "pamawsaccesskeyid", True),
+                    aws_secret_access_key=_gfv(provider_record, "pamawsaccesssecretkey", True),
+                    region_names=_gfv(provider_record, "pamawsregionname"),
+                )
+            elif provider_record.type == "pamAzureConfiguration":
+                resource_groups_str = _gfv(provider_record, "pamazureresourcegroup")
+                resource_groups = [x.strip() for x in resource_groups_str.split("\n")]
+
+                provider_config = AzureConfig(
+                    subscription_id=_gfv(provider_record, "pamazuresubscriptionid", True),
+                    tenant_id=_gfv(provider_record, "pamazuretenantid", True),
+                    application_id=_gfv(provider_record, "pamazureclientid", True),
+                    client_secret=_gfv(provider_record, "pamazureclientsecret", True),
+                    resource_groups=resource_groups,
+                    authority=_gfv(provider_record, "Azure Authority FQDN"),
+                    graph_endpoint=_gfv(provider_record, "Azure Graph Endpoint"),
+                )
+
+            # Cannot do the domain controller fully.
+            # We need to graph to get the admin user.
+            elif provider_record.type == "pamDomainConfiguration":
+                Log.warning("currently cannot get the admin credentials for the domain controller.")
+                host_and_port = _gfv(provider_record, "pamazuresubscriptionid", True),
+                if host_and_port is None:
+                    host_and_port = {}
+                hostname = host_and_port.get("hostName")
+                port = None
+                try:
+                    port = int(host_and_port.get("port"))
+                except (Exception,):
+                    pass
+
+                provider_config = DomainConfig(
+                    hostname=hostname,
+                    port=port,
+                    username=Secret("Cannot get value"),
+                    dn=Secret("Cannot get value"),
+                    password=Secret("Cannot get value"),
+                    use_ssl=value_to_boolean(_gfv(provider_record, "useSSL")),
+                )
+            elif provider_record.type == "pamNetworkConfiguration":
+                cidrs_str = _gfv(provider_record, "pamnetworkcidr")
+                cidrs = [x.strip() for x in cidrs_str.split("\n")]
+                provider_config = NetworkConfig(
+                    cidrs=cidrs
+                )
 
         if user_record is None:
             raise Exception("Could not get the user record.")
@@ -173,6 +240,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
         plugin = getattr(module, "SaasPlugin")(
             user=user,
             config_record=config_record,
+            provider_config=provider_config,
             force_fail=fail
         )
         try:
