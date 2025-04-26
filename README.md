@@ -1,11 +1,11 @@
-# SaaS Plugin Development Environment
+# KeeperPAM Rotation Plugin Development Environment
 
 This is the development environment to build and test plugins for
-PAM SaaS rotations.
+KeeperPAM automated credential rotations.
 
 ## Setup
 
-Currently, the setup guide is focussed on Linux and macOS. 
+Currently, the setup guide is focused on Linux and macOS. 
 
 ### Get the Development Environment
 
@@ -61,7 +61,7 @@ cp /path/to/discovery-and-rotation-saas-dev/exmaples/hello_world.py .
 ### SaaS Config Record
 
 Currently, the SaaS Config record is a **Login** record with custom fields that are
-  used to configure the SaaS rotation. 
+  used to configure the SaaS rotation.
 
 The command `plugin_test config` is used to make a SaaS Config record in your Vault.
 It will prompt you to enter required and optional values.
