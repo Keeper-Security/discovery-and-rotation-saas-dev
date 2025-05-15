@@ -167,3 +167,63 @@ The hello_world.py example sets return values.
 These values are added to the PAM User record as custom fields.
 
 ![user_record.png](.images/user_record.png)
+
+
+# Using the Keeper PAM Gateway
+
+In order to use the plugin with the Gateway, a plugin directory needs to be created.
+To tell this Gateway with directory exists the absolute path to the directory needs set on the
+  PAM configuration record.
+This is done using the custom field `SaaS Plugins Dir`.
+
+Custom fields can be added to a PAM configuration record using 
+  the [Commander CLI](https://docs.keeper.io/en/enterprise-guide/commander-cli).
+Currently, the Vault can not add custom fields to a PAM configuration.
+
+The Commander CLI command is
+```
+My Vault> record-update -r <CONFIGURATION RECORD UID> "text.SaaS Plugins Dir=/path/to/dir"
+```
+
+If running the Keeper PAM Gateway inside a container, and the plugin directory is outside, you
+will need to use `volumes` to map the external directory and internal directory.
+
+In the example below, in the directory that contains the `docker-compose.yml` file, 
+  the `outside_saas_plugins` is created.
+This is the directory the SaaS plugin Python file can be copied.
+This directory will be mounted inside the container at `/inside_saas_plugins`
+
+```dockerfile
+services:
+  keeper-gateway:
+    platform: linux/amd64
+    image: keeper/gateway:preview
+    shm_size: 2g
+    security_opt:
+      - "seccomp:docker-seccomp.json"
+    restart: always
+    volumes:
+      - ./outside_saas_plugins:/inside_saas_plugins
+    environment:
+      ACCEPT_EULA: Y    # KCM Guacd Accept EULA
+      GATEWAY_CONFIG: XXXX
+```
+
+And then when setting the plugin directory, use the inside directory path.
+```
+My Vault> record-update -r <CONFIGURATION RECORD UID> "text.SaaS Plugins Dir=/inside_saas_plugins"
+```
+
+## Using PAM configuration information.
+
+If your plugin uses AWS, Azure, etc. connection information from the PAM Configuration.
+By default, you will not be able to access this information in the plugin unless included in list of
+  approved plugins.
+
+This is controlled by the custom field `Allow SaaS Access`, which is a multiline fields.
+To allow your plugin to access the PAM configuration information, the customer will need to
+  add the name of your plugin to this list.
+
+```
+My Vault> record-update -r <CONFIGURATION RECORD UID> "multiline.Allow SaaS Access=My Plugin\nMy Other Plugin"```
+```
