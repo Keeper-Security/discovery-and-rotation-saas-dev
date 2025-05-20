@@ -7,7 +7,7 @@ from kdnrm.log import Log
 try:
     import snowflake.connector
 except ImportError:
-    raise SaasException("Missing required module: snowflake-connector-python")
+    raise SaasException("Missing required module: snowflake-connector-python, please install it using \"pip install snowflake-connector-python\"")
 
 if TYPE_CHECKING:
     from kdnrm.saas_type import SaasUser
@@ -54,8 +54,6 @@ class SaasPlugin(SaasPluginBase):
         """
         Log.info("Changing password for Snowflake user")
         try:
-            new_password = self.user.new_password.value
-    
             admin_authentication_record = self.config_record.dict.get('fields', [])
             if not isinstance(admin_authentication_record, list):
                 raise SaasException("Expected 'fields' to be a list in config_record.")
@@ -77,10 +75,7 @@ class SaasPlugin(SaasPluginBase):
             snowflake_account_name = next((custom['value'][0] for custom in custom_fields if custom['label'] == 'snowflake_account_name'), None)
 
             snowflake_rotated_user_name = self.user.username.value
-
-            # Extract new rotated password..
             new_password = self.user.new_password.value
-            
             if not all([snowflake_account_name, snowflake_admin_user, snowflake_admin_pass]):
                 raise SaasException(f"Error: One or more required fields are missing in the authentication record.")
             
@@ -98,13 +93,14 @@ class SaasPlugin(SaasPluginBase):
                 change_pass_query = f'ALTER USER "{snowflake_rotated_user_name}" SET PASSWORD = %s'
                 cur.execute(change_pass_query, (new_password,))
             except Exception as E:
+                cur.close()
+                conn.close()
                 raise SaasException(f"Unable to update the password. Error: {E}")
-
-            Log.debug(f"Closing cursor")
-            cur.close()
-            
-            Log.debug(f"Closing connection")
-            conn.close()
+            finally:
+                Log.debug(f"Closing cursor")
+                cur.close()
+                Log.debug(f"Closing connection")
+                conn.close()
             
             Log.info("Password changed successfully.")
         except Exception as e:
