@@ -62,6 +62,7 @@ Once you have your pre-requisites ready, make sure you cover the following:
 Once this is done, attach the post-rotation script to a Keeper Security PAM user record using the Keeper Security [_documentation_](https://docs.keeper.io/en/v/secrets-manager/secrets-manager/password-rotation/post-rotation-scripts). When this record has its secrets rotated, the post-rotation script will run and update the password for given snowflake user.
 
 - Please open a terminal with the virtual environment activated, and execute the following command.
+- This command runs within the integrations/<integration_name> directory. User may specify the path to the KSM config file using the **--config** parameter.
 
 ```shell
 plugin_test -f snowflake_password_rotation.py -u XXXX -c YYYY
