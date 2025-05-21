@@ -11,7 +11,6 @@ AWS Cognito is a managed identity service that helps developers easily add user 
 
 In order to use the post-rotation script, you will need the following prerequisites:
 
-
 **1. boto3 Library:** Ensure that the boto3 connector library is installed in your python virtual environment.
 
     pip install boto3
@@ -28,6 +27,8 @@ To change a user's password in AWS Cognito, you must first create an App Client 
 - Please open a terminal with the virtual environment activated, and execute the following command.
 
 - To enable password rotation for a user, you must first create a configuration inside shared folder within Keeper Vault. This configuration securely stores the credentials needed for automated password rotation. Without setting up this configuration in Keeper Vault, the system will not have the necessary context or access to perform password updates on the target account or system.
+
+- This command runs within the integrations/<integration_name> directory. User may specify the path to the KSM config file using the **--config** parameter.
 
       plugin_test -f <cognito_python_file> -s <UID_Shared_Folder> -t "AWS Congito User Pool Details"
     
@@ -47,7 +48,7 @@ To change a user's password in AWS Cognito, you must first create an App Client 
       Cloud Region.
       Enter Value : >
 
-    -  AWS Access Key ID: Admin Security credentials.
+    - AWS Access Key ID: Admin Security credentials.
     - AWS Secret Access Key: Admin Security credentials.
     - User Pool ID: The User Pool ID is located within the user pool in AWS Cognito.
     - Cloud Region: Cloud region where user pool is located.
