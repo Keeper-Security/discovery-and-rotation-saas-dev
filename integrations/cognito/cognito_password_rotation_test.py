@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from kdnrm.saas_type import SaasUser, ReturnCustomField, Secret
 from kdnrm.exceptions import SaasException
-from cogntio_password_rotation import SaasPlugin
+from cognito_password_rotation import SaasPlugin
 from kdnrm.log import Log
 
 # Mock logger to avoid actual logging during tests
@@ -34,7 +34,7 @@ def plugin():
     return SaasPlugin(user=mock_user, config_record=mock_config_record)
 
 def test_change_password_success(plugin):
-    with patch("cogntio_password_rotation.boto3.client") as mock_client:
+    with patch("cognito_password_rotation.boto3.client") as mock_client:
         mock_boto_client = MagicMock()
         mock_client.return_value = mock_boto_client
 
@@ -55,9 +55,8 @@ def test_change_password_success(plugin):
         assert any(f.label == "cloud_region" for f in plugin.return_fields)
 
 def test_change_password_missing_fields(plugin):
-    # Patch config to return None for required fields
     plugin.get_config = MagicMock(return_value=None)
-    with patch("cogntio_password_rotation.boto3.client"):
+    with patch("cognito_password_rotation.boto3.client"):
         with pytest.raises(SaasException, match="Missing required fields in config record."):
             plugin.change_password()
 
@@ -75,10 +74,29 @@ def test_add_return_field_invalid_type(plugin):
         plugin.add_return_field("not_a_field")
 
 def test_rollback_password_success(plugin):
+    plugin.user.username = Secret("test_user")
+    plugin.user.prior_password = Secret(("ignored", "old_password"))
     plugin.user.new_password = Secret("new_password")
-    plugin.user.prior_password = Secret("old_password")
+    plugin._client = MagicMock()
+    plugin._client.admin_set_user_password = MagicMock()
+    plugin._SaasPlugin__user_pool_id = "test_pool"
+    plugin._SaasPlugin__cloud_region = Secret("us-west-2")
+    plugin.add_return_field = MagicMock()
     plugin.rollback_password()
+    plugin._client.admin_set_user_password.assert_called_once_with(
+        UserPoolId="test_pool",
+        Username="test_user",
+        Password="old_password",
+        Permanent=True
+    )
     assert plugin.user.new_password.value == "old_password"
+    plugin.add_return_field.assert_called_once()
+    called_field = plugin.add_return_field.call_args[0][0]
+    assert isinstance(called_field, ReturnCustomField)
+    assert called_field.label == "cloud_region"
+    assert called_field.value.value == "us-west-2"
+    assert called_field.type == "text"
+
 
 def test_rollback_password_no_prior_password(plugin):
     plugin.user.prior_password = None
