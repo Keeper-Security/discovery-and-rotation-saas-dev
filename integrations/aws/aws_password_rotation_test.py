@@ -78,12 +78,33 @@ def test_add_return_field_invalid_type(plugin):
         plugin.add_return_field("not_a_field")
 
 def test_rollback_password_success(plugin):
-    plugin.user.prior_password = Secret("old_pass")
+    plugin.user.prior_password = Secret(("first_pass", "old_pass"))
     plugin.user.new_password = Secret("new_pass")
+    plugin._client = MagicMock()
+    plugin._client.update_login_profile = MagicMock()
+    plugin._SaasPlugin__aws_user_login = "aws_user"
+    plugin._SaasPlugin__account_id = "123456789012"
+    plugin.add_return_field = MagicMock(return_value=None)
     plugin.rollback_password()
-    assert plugin.user.new_password.value == "s"  # "old_pass"[-1] == "s"
+
+    assert plugin.user.new_password.value == "old_pass"
+
+def test_rollback_password_add_return_field_error(plugin):
+    plugin.user.prior_password = Secret(("prev1", "old_pass"))
+    plugin.user.new_password = Secret("new_pass")
+    plugin._client = MagicMock()
+    plugin._SaasPlugin__aws_user_login = "aws_user"
+    plugin._SaasPlugin__account_id = "123456789012"
+    plugin.add_return_field = MagicMock(side_effect=Exception("fail"))
+
+    with pytest.raises(SaasException, match="Error saving add_return_field for rollback: fail"):
+        plugin.rollback_password()
+
+    assert plugin.user.new_password.value == "old_pass"
 
 def test_rollback_password_no_prior(plugin):
     plugin.user.prior_password = None
-    with pytest.raises(SaasException, match="Rollback failed:"):
+    plugin._client = MagicMock()
+    plugin.add_return_field = MagicMock()
+    with pytest.raises(SaasException, match="Password Change while rollback failed:"):
         plugin.rollback_password()

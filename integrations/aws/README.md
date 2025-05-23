@@ -11,7 +11,7 @@ In AWS, an IAM user is an identity within your AWS account that you create to gr
 
 In order to use the post-rotation script, you will need the following prerequisites:
 
-**1. boto3 Library:** Ensure that the boto3 connector library is installed in your python virtual environment.
+**1. boto3 Library:** Ensure that the boto3 connector library is installed in your python environment.
 
     pip install boto3
 
@@ -21,8 +21,8 @@ AWS uses the security credentials to authenticate and authorize your requests. T
 **3. IAM Policies Permission List:** 
 The following IAM permissions are additionally required by AWS users to perform password rotation.
     
-- iam:UpdateLoginProfile
-- iam:GetLoginProfile
+- [iam:UpdateLoginProfile](https://docs.aws.amazon.com/IAM/latest/APIReference/API_UpdateLoginProfile.html)
+- [iam:GetLoginProfile](https://docs.aws.amazon.com/IAM/latest/APIReference/API_GetLoginProfile.html)
 
 ## Steps to create Keeper security records and AWS Cognito
 

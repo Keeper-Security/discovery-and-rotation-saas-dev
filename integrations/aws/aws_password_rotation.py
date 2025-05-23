@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
 class SaasPlugin(SaasPluginBase):
     name = "AWS Post Rotation Plugin"
+    __account_id = "<account_id>"
+    __aws_user_login = "<username>"
     def __init__(self, user: SaasUser, config_record: Record, provider_config=None, force_fail=False):
         super().__init__(user, config_record, provider_config, force_fail)
         self.user = user
@@ -62,6 +64,7 @@ class SaasPlugin(SaasPluginBase):
             else:
                 self.return_fields.append(field)
         except Exception as e:
+            Log.error(f"Error adding return field: {e}")
             raise SaasException(f"Error adding return field: {e}")
         Log.debug(f"Added return field")
         
@@ -84,18 +87,20 @@ class SaasPlugin(SaasPluginBase):
                 region_name=cloud_region)
             self._client = client
             
-            aws_user_login = self.user.username.value
+            self.__aws_user_login = self.user.username.value
             new_password = self.user.new_password.value
             sts = boto3.client('sts')
             response = sts.get_caller_identity()
-            account_id = response["Account"]
+            self.__account_id = response["Account"]
+            if not self.__account_id:
+                raise SaasException("Unable to retrieve AWS account ID.")
             client.update_login_profile(
-                UserName=aws_user_login,
+                UserName=self.__aws_user_login,
                 Password=new_password,
                 PasswordResetRequired=False
             )
-
         except Exception as e:
+            Log.error(f"Error changing password: {e}")
             raise SaasException(f"Password change failed: {e}")
         Log.info("Password changed successfully.")
         try:
@@ -103,7 +108,7 @@ class SaasPlugin(SaasPluginBase):
             self.add_return_field(
                 ReturnCustomField(
                     label="account_id_or_alias",
-                    value=Secret(account_id),
+                    value=Secret(self.__account_id),
                     desc="AWS Account ID",
                     type="secret",
                 ),
@@ -114,7 +119,25 @@ class SaasPlugin(SaasPluginBase):
     def rollback_password(self):
         try:
             Log.debug("Rolling back password for AWS Plugin  user")
+            self._client.update_login_profile(
+                UserName=self.__aws_user_login,
+                Password=self.user.prior_password.value[-1],
+                PasswordResetRequired=False
+            )
             self.user.new_password = Secret(self.user.prior_password.value[-1])
-            Log.info("Password rolled back successfully.")
         except Exception as e:
-            raise SaasException(f"Rollback failed: {e}")
+            Log.error(f"Error rolling back password: {e}")
+            raise SaasException(f"Password Change while rollback failed: {e}")
+        try:
+            Log.debug(f"Adding return field for rollback")
+            self.add_return_field(
+                ReturnCustomField(
+                    label="account_id_or_alias",
+                    value=Secret(self.__account_id),
+                    desc="AWS Account ID",
+                    type="secret",
+                ),
+            )
+        except Exception as e:
+            raise SaasException(f"Error saving add_return_field for rollback: {e}")
+        Log.info("Password rolled back successfully.")
