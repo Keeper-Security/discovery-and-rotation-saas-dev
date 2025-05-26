@@ -42,14 +42,14 @@ def test_change_password_success(plugin):
 
         mock_client.assert_called_once_with(
             "cognito-idp",
-            aws_access_key_id="access",
-            aws_secret_access_key="secret",
-            region_name="us-west-2"
+            aws_access_key_id=plugin.config_record.get_custom_field_value("AWS Access Key ID"),
+            aws_secret_access_key=plugin.config_record.get_custom_field_value("AWS Secret Access Key"),
+            region_name=plugin.config_record.get_custom_field_value("Cloud Region")
         )
         mock_boto_client.admin_set_user_password.assert_called_once_with(
-            UserPoolId="test_pool",
-            Username="test_user",
-            Password="new_password",
+            UserPoolId=plugin.config_record.get_custom_field_value("User Pool ID"),
+            Username=plugin.user.username.value,
+            Password=plugin.user.new_password.value,
             Permanent=True
         )
         assert any(f.label == "cloud_region" for f in plugin.return_fields)
@@ -84,9 +84,9 @@ def test_rollback_password_success(plugin):
     plugin.add_return_field = MagicMock()
     plugin.rollback_password()
     plugin._client.admin_set_user_password.assert_called_once_with(
-        UserPoolId="test_pool",
-        Username="test_user",
-        Password="old_password",
+        UserPoolId=plugin.config_record.get_custom_field_value("User Pool ID"),
+        Username=plugin.user.username.value,
+        Password=plugin.user.new_password.value,
         Permanent=True
     )
     assert plugin.user.new_password.value == "old_password"
