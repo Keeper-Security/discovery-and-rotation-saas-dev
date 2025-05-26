@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
 class SaasPlugin(SaasPluginBase):
     name = "Cisco APIC Post Rotation Plugin"
-    cookie_token = "<cookie_token>"
-    cisco_api_url = "<cisco_api_url>"
+    __cookie_token = "<cookie_token>"
+    __cisco_api_url = "<cisco_api_url>"
 
     def __init__(self, user: SaasUser, config_record: Record, provider_config=None, force_fail=False):
         super().__init__(user, config_record, provider_config, force_fail)
@@ -57,7 +57,7 @@ class SaasPlugin(SaasPluginBase):
             cisco_admin_record = self.config_record.dict.get('fields', [])
             if not isinstance(cisco_admin_record, list):
                 raise SaasException("Expected 'fields' to be a list in config_record.")
-            
+
             Log.debug(f"Extracting login from config record")
             cisco_admin_username = next((field['value'][0] for field in cisco_admin_record if field['type'] == 'login'), None)
             if not cisco_admin_username:
@@ -72,44 +72,50 @@ class SaasPlugin(SaasPluginBase):
             cisco_api_url = next((field['value'][0] for field in cisco_admin_record if field['type'] == 'url'), None)
             if not cisco_api_url:
                 raise SaasException("Missing 'cisco api url' field in config record.")
-
-            if not all([cisco_admin_record, cisco_admin_username, cisco_admin_pass, cisco_api_url]):
-                raise SaasException("Missing required fields in config record.")
-
-            self.cisco_api_url = cisco_api_url
-            self.cookie_token = self.extracting_cookie_token(cisco_admin_username, cisco_admin_pass)
-            if not self.cookie_token:
-                raise SaasException("Failed to extract cookie token.")
             
-            Log.debug(f"Extracting new password from config record")
+            Log.debug(f"Checking required fields in config record")
+            cisco_file_ref = next((field['value'][0] for field in cisco_admin_record if field['type'] == 'fileRef'), None)
+            if not cisco_file_ref:
+                raise SaasException("Missing 'file ref' field in config record.")
+
+            attachment_name = [f.name for f in self.config_record.files]
+            if "ssl-certificate.pem" not in attachment_name:
+                raise SaasException("Missing 'ssl-certificate.pem' file in config record attachments.")
+            
+            if not all([cisco_admin_record, cisco_admin_username, cisco_admin_pass, cisco_api_url ]):
+                raise SaasException("Missing required fields in config record.")
+            
+            Log.debug(f"Downloading ssl-certificate.pem file")
+            self.config_record.download_file_by_title('ssl-certificate.pem', "ssl-certificate.pem")
+
+            self.__cisco_api_url = cisco_api_url
+            self.fetch_cookie_token(cisco_admin_username, cisco_admin_pass)
             username = self.user.username.value
             new_password = self.user.new_password.value
-            Log.debug(f"New password: {new_password}")
             self.change_user_password(username, new_password)
 
             Log.debug(f"Password changed successfully for user {username}")
         except Exception as e:
             raise SaasException(f"Password change failed: {e}")
         try:
-            Log.debug(f"Adding return field")
             self.add_return_field(
                 ReturnCustomField(
                     label="apic_url",
                     type="url",
-                    value=Secret(cisco_api_url)
+                    value=Secret(self.__cisco_api_url)
                 )
             )
         except Exception as e:
             Log.error(f"Error saving add_return_field: {e.__str__()}")
             raise SaasException(f"Error saving add_return_field: {e}")
 
-    def extracting_cookie_token(self, login: str, password: str) -> str:
+    def fetch_cookie_token(self, login: str, password: str):
         """
         Extract the cookie token for the Cisco APIC Plugin user.
         """
         Log.info("Extracting cookie token for Cisco APIC Plugin user")
         try:
-            login_url = f"{self.cisco_api_url}/api/aaaLogin.json"
+            login_url = f"{self.__cisco_api_url}/api/aaaLogin.json"
             payload = {
                 "aaaUser": {
                     "attributes": {
@@ -121,10 +127,12 @@ class SaasPlugin(SaasPluginBase):
             response = requests.post(login_url, json=payload, verify='ssl-certificate.pem')
             if response.status_code == 200:
                 cookie = response.cookies.get('APIC-cookie')
-                Log.debug(f"Cookie token extracted: {cookie}")
-                return cookie
+                if not cookie:
+                    Log.error("Failed to extract cookie token from response.")
+                    raise SaasException("Failed to extract cookie token")
+                self.__cookie_token = cookie
             else:
-                Log.error(f"Failed to extract cookie token: status-code {response.status_code} - {response.text}")
+                Log.error(f"Failed to extract cookie token: StatusCode {response.status_code} - Message: {response.text}")
                 raise SaasException("Failed to extract cookie token")
         except Exception as e:
             Log.error(f"Error changing password: {e.__str__()}")
@@ -136,7 +144,7 @@ class SaasPlugin(SaasPluginBase):
         """
         Log.info(f"Changing password for user {username}")
         try:
-            change_password_url = f"{self.cisco_api_url}/api/node/mo/uni/userext/user-{username}.json"
+            change_password_url = f"{self.__cisco_api_url}/api/node/mo/uni/userext/user-{username}.json"
             payload = {
                 "aaaUser": {
                     "attributes": {
@@ -146,7 +154,7 @@ class SaasPlugin(SaasPluginBase):
                 }
             }
             headers = {
-                'Cookie': f'APIC-Cookie={self.cookie_token}'
+                'Cookie': f'APIC-Cookie={self.__cookie_token}'
             }
             response = requests.post(change_password_url, json=payload, headers=headers, verify='ssl-certificate.pem')
             if response.status_code == 200:
@@ -162,7 +170,7 @@ class SaasPlugin(SaasPluginBase):
     def rollback_password(self):
         try:
             Log.debug("Rolling back password for Cisco APIC Plugin  user")
-            change_password_url = f"{self.cisco_api_url}/api/node/mo/uni/userext/user-{self.user}.json"
+            change_password_url = f"{self.__cisco_api_url}/api/node/mo/uni/userext/user-{self.user}.json"
             payload = {
                 "aaaUser": {
                     "attributes": {
@@ -172,7 +180,7 @@ class SaasPlugin(SaasPluginBase):
                 }
             }
             headers = {
-                'Cookie': f'APIC-Cookie={self.cookie_token}'
+                'Cookie': f'APIC-Cookie={self.__cookie_token}'
             }
             response = requests.post(change_password_url, json=payload, headers=headers, verify='ssl-certificate.pem')
             if response.status_code == 200:
@@ -186,7 +194,7 @@ class SaasPlugin(SaasPluginBase):
                     ReturnCustomField(
                         label="apic_url",
                         type="url",
-                        value=Secret(cisco_api_url)
+                        value=Secret(self.__cisco_api_url)
                     )
                 )
             except Exception as e:
