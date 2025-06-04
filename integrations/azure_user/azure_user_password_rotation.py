@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
 
+LOGIN_URL = "https://login.microsoftonline.com/"
+SCOPES = ['https://graph.microsoft.com/.default']
 class SaasPlugin(SaasPluginBase):
 
     name = "Azure Post Rotation Plugin"
@@ -86,8 +88,8 @@ class SaasPlugin(SaasPluginBase):
             tenant_id = self.get_config("tenant_id")
             client_id = self.get_config("client_id")
             client_secret = self.get_config("client_secret")
-            if not all([tenant_id, client_id, client_secret]):
-                Log.error(f"Mission any fields from ['tenant_id', 'client_id', 'client_secret']")
+            if not (tenant_id and client_id and client_secret):
+                Log.error(f"'tenant_id', 'client_id' and 'client_secret' are all required fields. One or few of them are missing")
                 raise SaasException("Missing required fields from config_record")
             
             self.__azure_client = AzureClient(tenant_id=tenant_id, client_id=client_id, client_secret=client_secret)
@@ -101,9 +103,9 @@ class SaasPlugin(SaasPluginBase):
         try:
             Log.debug(f"Adding return field")
             self.add_return_field(ReturnCustomField(
-                label="scopes",
+                label="login_url",
                 type="url",
-                value=Secret("https://login.microsoftonline.com/")
+                value=Secret(LOGIN_URL)
             ))
         except Exception as e:
             Log.error(f"Error while add_return_field: {e}")
@@ -129,9 +131,8 @@ class AzureClient:
 
     async def change_password_by_admin(self, username, new_password):
         Log.info("Rotationg user password by admin credentials")
-        scopes = ['https://graph.microsoft.com/.default']
         try:
-            client = GraphServiceClient(credentials=self.__azure_credential, scopes=scopes)
+            client = GraphServiceClient(credentials=self.__azure_credential, scopes=SCOPES)
             request_body = User(
                 password_profile = PasswordProfile(
                     force_change_password_next_sign_in = False,

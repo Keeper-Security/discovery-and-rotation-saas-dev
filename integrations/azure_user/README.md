@@ -11,7 +11,7 @@ Microsoft Entra ID is a cloud-based identity and access management solution. It 
 
 In order to use the post-rotation script, you will need the following prerequisites:
 
-**msgraph and azure-identity library :**  Ensure that the boto3 connector library is installed in your python environment.
+**msgraph and azure-identity library :**  Ensure that msgraph and azure-identity connector library is installed in your python environment.
         
     pip install msgraph-sdk
     pip install azure-identity
@@ -31,7 +31,7 @@ Perform the below steps to setup the Azure application to rotate the password.
 
     <img src="images/create-secret.png" width="350" alt="create-secret">
 
-- Give the `Privileged Authentication Administrator` role to the created application.
+- Give the [`Privileged Authentication Administrator`](https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/permissions-reference#privileged-authentication-administrator) role to the created application.
 
     <img src="images/assign-role-1.png" width="350" alt="assign-role-1">
 
