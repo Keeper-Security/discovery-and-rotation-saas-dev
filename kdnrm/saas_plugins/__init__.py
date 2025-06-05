@@ -36,21 +36,25 @@ class SaasPluginBase:
             # Pre-i18n it will match the label.
             # Post-i18n it will match i18n code.
             # And try the ID, just in case
-            for key in ["label", "code", "id"]:
+            for key in ["label", "id"]:
                 key_value = getattr(item, key)
                 if key_value is None:
                     continue
                 try:
-                    value = config_record.get_custom_field_value(key_value, single=True).strip()
+                    value = config_record.get_custom_field_value(key_value, single=True)
+                    if value is not None:
+                        value = value.strip()
                     if value == "":
                         value = None
                     break
                 except (Exception,):
-                    Log.info(f"could not retrieve the custom field '{key_value}'")
+                    pass
 
             # If the value is None, set it to the default value.
             if value is None:
                 value = item.default_value
+                if value is None:
+                    Log.info(f"could not retrieve the custom field '{item.label}'")
 
             if value is not None:
                 # If a password, add the value to the secret.

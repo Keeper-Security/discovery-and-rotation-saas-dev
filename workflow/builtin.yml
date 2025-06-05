@@ -1,0 +1,77 @@
+---
+name: AWS Access Key
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate a user's AWS IAM access and secret key.
+description: >
+  Rotate a user's AWS IAM access and secret key.
+file: aws_access_key.py
+readme:
+---
+name: Azure Client Secret
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate an applications client secret.
+description: >
+  Rotate an applications client secret.
+file: azure_client_secret.py
+readme:
+---
+name: Cisco IOS XE
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate a user in Cisco IOS XE.
+description: >
+  Rotate a user in Cisco IOS XE.
+file: cisco_ios_xe.py
+readme:
+---
+name: Cisco Meraki
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate a user in Cisco Meraki.
+description: >
+  Rotate a user in Cisco Meraki.
+file: cisco_meraki.py
+readme:
+---
+name: Okta
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate a user in Okta.
+description: >
+  Rotate a user in Okta.
+file: okta.py
+readme:
+---
+name: REST
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate a user via REST.
+description: >
+  Rotate a user via REST.
+file: rest.py
+readme:
+---
+name: Snowflake
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate a user in Snowflake.
+description: >
+  Rotate a user in Snowflake.
+file: snowflake.py
+readme:
