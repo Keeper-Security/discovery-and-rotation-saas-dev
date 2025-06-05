@@ -1,0 +1,51 @@
+name: Catalog
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  catalog:
+    name: Build Catalog
+    environment: prod
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Get Version
+        id: version
+        run: echo "VERSION=$(./workflow/version.py)" >> $GITHUB_OUTPUT
+
+      - name: Version Is ${{ steps.version.outputs.VERSION }}
+        run: echo "Version is ${{ steps.version.outputs.VERSION }}"
+
+      - name: Catalog
+        run: |
+          python3 ./workflow/catalog.py
+
+      - name: Release Catalog
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_name: Keeper-Security/discovery-and_rotation-saas-dev
+          repo_token: ${{ secrets.GH_ACCESS_TOKEN }}
+          file: /workflow/catalog.xml
+          tag: "${{ steps.version.outputs.VERSION }}"
+          release_name: "Catalog ${{ steps.version.outputs.VERSION }}"
+          overwrite: true
+          file_glob: true
+          body: "SaaS Plugin catalog version ${{ steps.version.outputs.VERSION  }}"

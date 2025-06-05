@@ -78,3 +78,6 @@ dr-infra/simulation-infra/dr-test-servers/gateway/logs/*.log
 *.env
 parser.out
 #parsertab.py
+
+workflow/catalog.yml
+coverage.json

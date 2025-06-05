@@ -1,0 +1,7 @@
+---
+name: AWS Cognito
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate a user's AWS IAM access and secret key.
+readme: README.md
