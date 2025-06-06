@@ -44,7 +44,7 @@ Perform the below steps to setup the Azure application to rotate the password.
     
     <img src="images/assign-role-3.png" width="350" alt="assign-role-3">
 
-- Assing the below api permissions to the application.
+- Assign the below api permissions to the application.
     
     - User-PasswordProfile.ReadWrite.All
 
