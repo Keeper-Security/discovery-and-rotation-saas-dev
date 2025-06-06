@@ -12,8 +12,7 @@ try:
     from msgraph import GraphServiceClient
     from msgraph.generated.models.user import User
     from msgraph.generated.models.password_profile import PasswordProfile
-    from msgraph.generated.users.item.authentication.methods.item.reset_password.reset_password_post_request_body import ResetPasswordPostRequestBody
-
+    
 except ImportError:
     raise SaasException("Missing required modules, Please install the required modules from requirements.txt using 'pip install -r requirements.txt'")
 
