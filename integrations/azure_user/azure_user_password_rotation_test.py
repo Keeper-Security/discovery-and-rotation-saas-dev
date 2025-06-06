@@ -12,7 +12,7 @@ def plugin():
     mock_user = MagicMock(spec=SaasUser)
     mock_user.username = Secret("test_user")
     mock_user.new_password = Secret("new_password")
-    mock_user.prior_password = Secret("old_password")
+    mock_user.prior_password = Secret(("older_password", "old_password"))
 
     mock_config_record = MagicMock()
     def get_config(key, single=True):
@@ -60,10 +60,10 @@ def test_rollback_password_success(plugin):
         mock_client = MagicMock()
         mock_client.change_password_by_admin = AsyncMock()
         plugin._SaasPlugin__azure_client = mock_client
-        plugin.user.prior_password = Secret("old_password")
         plugin.rollback_password()
         mock_client.change_password_by_admin.assert_awaited_once_with(
-            "test_user", "d"
+            "test_user",
+            "old_password"
         )
 
 def test_rollback_password_no_prior(plugin):

@@ -48,7 +48,7 @@ Perform the below steps to setup the Azure application to rotate the password.
     
     - User-PasswordProfile.ReadWrite.All
 
-For more follow the [API Documentation](https://learn.microsoft.com/en-us/graph/api/user-update?view=graph-rest-1.0&tabs=http#example-3-update-the-passwordprofile-of-a-user-and-reset-their-password).
+For more details, follow the [API Documentation](https://learn.microsoft.com/en-us/graph/api/user-update?view=graph-rest-1.0&tabs=http#example-3-update-the-passwordprofile-of-a-user-and-reset-their-password).
 
 ### 2.  Execute the script and create config in keeper security:
 - Please open a terminal with the virtual environment activated, and execute the following command.
@@ -92,11 +92,11 @@ To rotate the user's password, you need to create a PAM user record and add the 
 
 Once you have your pre-requisites ready, make sure you cover the following:
 
-- Execute the following command in activtated virtual environment.
+- Execute the following command in activated virtual environment.
 
         plugin_test run -f <azure_user_python_script> -u <created_pam_user_record> -c <copied_uid_from_step_2>
 
-- The above command rotate the azure entra id user's password and Login URL.
+- The above command rotate the azure entra id user's password and update the custom field i.e. Login URL.
 
     <img src="images/successfully-rotated-vault.png" width="350" alt="successfully-rotated-vault">
 

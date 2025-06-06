@@ -130,7 +130,7 @@ class AzureClient:
             )
 
     async def change_password_by_admin(self, username, new_password):
-        Log.info("Rotationg user password by admin credentials")
+        Log.info("Rotating user password by admin credentials")
         try:
             client = GraphServiceClient(credentials=self.__azure_credential, scopes=SCOPES)
             request_body = User(
