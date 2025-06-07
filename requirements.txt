@@ -5,3 +5,4 @@ keeper-secrets-manager-helper
 click
 pydantic
 colorama
+pytest
