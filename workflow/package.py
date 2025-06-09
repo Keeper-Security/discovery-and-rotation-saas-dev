@@ -65,8 +65,6 @@ class Package(WorkflowBase):
         self.logger.info("Loading built in plugins.")
         with open(os.path.join(self.base_dir, "workflow", "builtin.yml"), 'r') as fh:
             datas = yaml.safe_load_all(fh)
-
-            print(datas)
             for data in datas:
                 print(data)
                 if data.get("summary") is not None:
@@ -95,6 +93,13 @@ class Package(WorkflowBase):
                     if name in package_dict:
                         raise ValueError(f"Duplicate plugin name for {name}.")
                     data.pop("type", None)
+
+                    if data.get("readme") is not None:
+                        url = "https://github.com/Keeper-Security"\
+                              "/discovery-and-rotation-saas-dev/blob/main/integrations/"\
+                              f"{entry}/{data.get('readme')}"
+                        data["readme"] = url
+
                     package_dict[name] = data
                     fh.close()
 
@@ -108,8 +113,10 @@ class Package(WorkflowBase):
             else:
                 self.logger.warning(f"  !! {meta_file} is missing, skipping.")
 
+        self.logger.info("Saving catalog.yml")
+
         package = [v for k,v in package_dict.items()]
-        with open(os.path.join(self.base_dir, "workflow", "catalog.yml"), 'w') as fh:
+        with open(os.path.join(self.base_dir, "catalog.yml"), 'w') as fh:
             fh.write(yaml.dump(package, sort_keys=False))
             fh.close()
 

@@ -29,21 +29,22 @@ jobs:
 
       - name: Get Version
         id: version
-        run: echo "VERSION=$(./workflow/version.py)" >> $GITHUB_OUTPUT
+        run: echo "VERSION=$(python3 workflow/version.py)" >> $GITHUB_OUTPUT
 
       - name: Version Is ${{ steps.version.outputs.VERSION }}
         run: echo "Version is ${{ steps.version.outputs.VERSION }}"
 
       - name: Catalog
         run: |
-          python3 ./workflow/catalog.py
+          python3 workflow/package.py
+          ls -l
 
       - name: Release Catalog
         uses: svenstaro/upload-release-action@v2
         with:
-          repo_name: Keeper-Security/discovery-and_rotation-saas-dev
+          repo_name: Keeper-Security/discovery-and-rotation-saas-dev
           repo_token: ${{ secrets.GH_ACCESS_TOKEN }}
-          file: /workflow/catalog.xml
+          file: catalog.yml
           tag: "${{ steps.version.outputs.VERSION }}"
           release_name: "Catalog ${{ steps.version.outputs.VERSION }}"
           overwrite: true
