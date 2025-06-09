@@ -1,0 +1,234 @@
+---
+name: Okta
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: For Okta, rotate the password for a user.
+file: okta.py
+readme: null
+schema:
+- id: okta_url
+  label: Okta URL
+  desc: Base URL to Okta Account.
+  code: gateway_kdnrm_saas_okta_url
+  type: url
+  required: true
+- id: okta_token
+  label: Okta Token
+  desc: Security token from the Security, API, Tokens admin page.
+  code: gateway_kdnrm_saas_okta_token
+  type: secret
+  required: true
+---
+name: REST
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: Generic REST implementation that calls your custom webservice to rotate a
+  user's password.
+file: rest.py
+readme: null
+schema:
+- id: rest_url
+  label: REST Url
+  desc: URL endpoint.
+  code: gateway_kdnrm_saas_rest_url
+  type: url
+  required: true
+- id: rest_token
+  label: REST Token
+  desc: A Bearer token.
+  code: gateway_kdnrm_saas_rest_token
+  type: secret
+  required: true
+- id: rest_method
+  label: REST Method
+  desc: HTTP method. Either 'POST' or 'PUT'
+  code: gateway_kdnrm_saas_rest_method
+  type: enum
+  required: false
+---
+name: Cisco Meraki
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: For Cisco Meraki, rotate the password for a user.
+file: cisco_meraki.py
+readme: null
+schema:
+- id: admin_email
+  label: Admin Email
+  desc: The admin email address.
+  type: text
+  required: true
+- id: api_key
+  label: API Key
+  desc: The admin password.
+  type: secret
+  required: true
+- id: network_id
+  label: Network ID
+  desc: 'A network ID of '
+  type: text
+  required: false
+- id: host
+  label: Webservice Host
+  desc: Alternative API webservice, if required.
+  default_value: api.meraki.com
+  type: text
+  required: false
+- id: verify
+  label: Verify SSL Certificate
+  desc: Verify that SSL Certificate on the IOS device.
+  default_value: false
+  type: bool
+  required: false
+---
+name: Azure Client Secret
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: For an Azure Application, rotate the secret for a client.
+file: azure_client_secret.py
+readme: null
+schema:
+- id: azure_target_object_id
+  label: Azure Target Object ID
+  desc: The Object ID of the Application. This is not the Application (client) ID.
+  type: text
+  required: true
+- id: azure_expiry_days
+  label: Expiry Days
+  desc: Number of dayes before the secret expires.
+  type: int
+  default_value: 365
+  required: true
+- id: azure_tenant_id
+  label: Azure Tenant ID
+  desc: Directory (tenant) ID of Microsoft Entra ID. Not needed if using an Azure
+    PAM Configuration.
+  type: text
+  required: false
+- id: azure_admin_application_id
+  label: Azure Admin Application ID
+  desc: Application (client) ID of the registered Application used for Administration.
+    Not needed if using an Azure PAM Configuration.
+  type: text
+  required: false
+- id: azure_admin_client_secret
+  label: Azure Admin Client Secret
+  desc: Application (client) ID of the registered Application used for Administration.Not
+    needed if using an Azure PAM Configuration.
+  type: secret
+  required: false
+- id: azure_authority
+  label: Azure Authority
+  desc: Special URL for MSAL to request tokens.Not needed if using an Azure PAM Configuration.
+  type: url
+  required: false
+- id: azure_graph_endpoint
+  label: Azure Graph Endpoint
+  desc: Special URL for Azure Graph scope.Not needed if using an Azure PAM Configuration.
+  type: url
+  default_value: https://graph.windows.net/.default
+  required: false
+- id: azure_clean_mode
+  label: Azure Clean Keys
+  desc: Clean up other Client credentials secrets. 'All' will remove every key and
+    'Replace' will remove the prior key for the user.
+  type: enum
+  required: true
+  default_value: All
+---
+name: Snowflake
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: For Snowflake, rotate the password for a user.
+file: snowflake.py
+readme: null
+schema:
+- id: snowflake_admin_user
+  label: Snowflake Admin User
+  desc: Administrator's username
+  code: gateway_kdnrm_saas_sf_admin_user
+  type: text
+  required: true
+- id: snowflake_admin_password
+  label: Snowflake Admin Password
+  desc: Administrator's password
+  code: gateway_kdnrm_saas_sf_admin_pass
+  type: secret
+  required: true
+- id: snowflake_account
+  label: Snowflake Account
+  desc: Snowflake account.
+  code: gateway_kdnrm_saas_sf_account
+  type: text
+  required: true
+---
+name: Cisco IOS XE
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: For Cisco IOS XE, rotate the password for a user.
+file: cisco_ios_xe.py
+readme: null
+schema:
+- id: admin_user
+  label: Admin Username
+  desc: The admin username.
+  type: text
+  required: true
+- id: admin_password
+  label: Admin Password
+  desc: The admin password.
+  type: secret
+  required: true
+- id: hostname
+  label: Hostname
+  desc: Hostname or IP address of Cisco device.
+  type: text
+  required: true
+- id: verify
+  label: Verify SSL
+  desc: Verify that SSL Certificate on the IOS device.
+  default_value: false
+  type: bool
+  required: false
+---
+name: AWS Access Key
+type: builtin
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: For an existing IAM User, rotate their access/secret keys.
+file: aws_access_key.py
+readme: null
+schema:
+- id: aws_admin_key
+  label: AWS Admin Access Key ID
+  desc: An administrator's AWS Access Key ID. Not needed if using an AWS PAM Configuration
+    or EC2 instance using the an IAM role.
+  type: secret
+  required: false
+- id: aws_secret_key
+  label: AWS Admin Secret Access Key
+  desc: An administrator's AWS Secret Access KEY. Not needed if using an AWS PAM Configuration
+    or EC2 instance using the an IAM role.
+  type: secret
+  required: false
+- id: region
+  label: Region Name
+  desc: Region name is only needed IAM requires special endpoint, such as GovCloud.
+    If using an AWS PAM Configuration, and the region is set in the record, this region
+    name will be used.
+  type: text
+  required: false
+- id: aws_clean_mode
+  label: AWS Clean Keys
+  desc: Clean up other Access Key. 'All' will remove every key, 'Oldest' will remove
+    the oldest Access Key to make room for new key, and 'Replace' will remove the
+    prior key for the user.
+  type: enum
+  required: true
+  default_value: All

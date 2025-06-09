@@ -1,0 +1,7 @@
+---
+name: Cisco APIC
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Rotate a user's in Cisco APIC.
+readme: README.md
