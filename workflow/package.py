@@ -94,12 +94,15 @@ class Package(WorkflowBase):
                         raise ValueError(f"Duplicate plugin name for {name}.")
                     data.pop("type", None)
 
+                    data["file"] = "https://raw.githubusercontent.com/Keeper-Security"\
+                                   f"/discovery-and-rotation-saas-dev/refs/heads/main/integrations"\
+                                   f"/{entry}/{entry}.py"
+
                     if data.get("readme") is not None:
                         url = "https://github.com/Keeper-Security"\
                               "/discovery-and-rotation-saas-dev/blob/main/integrations/"\
                               f"{entry}/{data.get('readme')}"
                         data["readme"] = url
-
                     package_dict[name] = data
                     fh.close()
 
