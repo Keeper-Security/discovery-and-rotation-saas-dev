@@ -79,5 +79,5 @@ dr-infra/simulation-infra/dr-test-servers/gateway/logs/*.log
 parser.out
 #parsertab.py
 
-catalog.yml
+catalog.json
 coverage.json

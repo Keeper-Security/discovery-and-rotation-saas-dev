@@ -44,7 +44,7 @@ jobs:
         with:
           repo_name: Keeper-Security/discovery-and-rotation-saas-dev
           repo_token: ${{ secrets.GH_ACCESS_TOKEN }}
-          file: catalog.yml
+          file: catalog.json
           tag: "${{ steps.version.outputs.VERSION }}"
           release_name: "Catalog ${{ steps.version.outputs.VERSION }}"
           overwrite: true
