@@ -3,6 +3,7 @@
 from workflow_base import WorkflowBase
 import os
 import yaml
+import json
 import ast
 import sys
 
@@ -116,11 +117,11 @@ class Package(WorkflowBase):
             else:
                 self.logger.warning(f"  !! {meta_file} is missing, skipping.")
 
-        self.logger.info("Saving catalog.yml")
+        self.logger.info("Saving catalog.json")
 
         package = [v for k,v in package_dict.items()]
-        with open(os.path.join(self.base_dir, "catalog.yml"), 'w') as fh:
-            fh.write(yaml.dump(package, sort_keys=False))
+        with open(os.path.join(self.base_dir, "catalog.json"), 'w') as fh:
+            fh.write(json.dumps(package, sort_keys=False, indent=4))
             fh.close()
 
 
