@@ -141,6 +141,10 @@ class Validate(WorkflowBase):
                     if process.stderr is not None and process.stderr != "":
                         self.logger.debug(f"{Fore.RED}{process.stderr}{Style.RESET_ALL}")
 
+                config_json_file = os.path.join(self.base_dir, "integrations", entry, "config.json")
+                if os.path.exists(config_json_file) is True:
+                    raise Exception("A config.json file detected in the plugin directory. Please remove this file.")
+
                 try:
                     plugin_mod = import_module(f"integrations.{entry}.{entry}")
                     plugin_class = getattr(plugin_mod, "SaasPlugin")
@@ -182,7 +186,7 @@ class Validate(WorkflowBase):
                     percentage = info["summary"].get("percent_covered")
                     self.logger.info(f"code coverage of {main_file} is {percentage} percent")
                     if percentage < Validate.COVERAGE_PERC:
-                        raise Exception("Coverage is too low. Require {Validate.COVERAGE_PERC} percent coverage.")
+                        raise Exception(f"Coverage is too low. Require {Validate.COVERAGE_PERC} percent coverage.")
 
             self.logger.info("plugin is valid\n")
 
