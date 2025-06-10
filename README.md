@@ -23,14 +23,19 @@ pip install .
 cd ..
 ```
 
-### Create a work directory
+### Plugin Structure
+
+#### Work Directory
 
 Create a directory in your preferred location. 
+The directory needs to be named the same as your plugin.
+In the example below, the touch will create an empty `my_plugin.py` file.
 This is where the Python plugin will be created and edited.
 
 ```shell
-mkdir my_work_dir
-cd my_work_dir
+mkdir my_plugin
+cd my_plugin
+touch my_plugin.py
 ```
 
 Next you need a Keeper Secrets Manager configuration.
@@ -49,12 +54,47 @@ Next you need a Keeper Secrets Manager configuration.
 cp /path/to/downloaded/config.json .
 ```
 
+#### meta.yml
+
+The meta.yml file contains one record.
+* name - The name of the plugin. Once set cannot be changed.
+* author - Name of the author of the plugin.
+* email - Email address of the author of the plugin.
+* summary - Short summary of the plugin. More detail information can be in the `readme`
+* readme - The name of documentation in the work directory. Normally this is `README.md`.
+
+#### Unit Test
+
+Tests are required.
+There is a minimum limit of 70% coverage.
+Any unit test in the work directory will be run when a PR is created.
+
+If special modules are needed for testing. They can be included in `requirements_test.txt`.
+
+#### Project Structure
+
+The final structure should look like this.
+
+```script
+% tree
+.
+└── my_plugin
+    ├── config.json
+    ├── meta.yml
+    ├── my_plugin_test.py
+    ├── my_plugin.py
+    ├── README.md
+    └── requirements_test.txt
+```
+The `config.json` is in the `.gitignore`. 
+However, if you managed to add it to the repo, the PR validation will fail.
+
 ## Test with Hello World
 
-Copy the `hello_world.py` file from the `examples` directory to your work directory.
+Copy the `hello_world.py` file from the `examples` directory to your work directory. 
 
 ```shell
-cd /path/to/my_work_dir
+cd /path/to/my_work_dir/hello_world
 cp /path/to/discovery-and-rotation-saas-dev/exmaples/hello_world.py .
 ```
 
