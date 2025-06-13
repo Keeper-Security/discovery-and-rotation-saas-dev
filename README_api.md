@@ -303,7 +303,7 @@ def config_schema(cls) -> List[dict]:
         SaasConfigItem(
             id="my_plikgin_token",
             label="Plugin Token",
-            desc="The token"
+            desc="The token",
             type="password",
             required=True
         ),
