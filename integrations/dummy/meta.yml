@@ -1,0 +1,7 @@
+---
+name: Dummy
+author: Keeper Security
+email: pam@keepersecurity.com
+summary: >
+  Simple plugin that logs fancy text.
+readme: README.md
