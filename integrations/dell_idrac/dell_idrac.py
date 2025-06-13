@@ -13,6 +13,9 @@ except ImportError:
 if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
 
+ACCOUNT_SERVICE_URL = "https://{idrac_ip}/redfish/v1/AccountService/Accounts/{user_id}"
+
+
 class SaasPlugin(SaasPluginBase):
     name = "Dell iDRAC Post Rotation Plugin"
 
@@ -96,7 +99,7 @@ class DelliDRACClient:
                 return field.values[-1]
 
     def check_username_by_id(self, user_id: str):
-        url = f"http://{self.__idrac_ip}/redfish/v1/AccountService/Accounts/{user_id}"
+        url = ACCOUNT_SERVICE_URL.format(idrac_ip=self.__idrac_ip,user_id=user_id)
         try:
             response = requests.get(url, auth=(self.__admin_username, self.__admin_password))
             if response.status_code == 200:
@@ -111,7 +114,7 @@ class DelliDRACClient:
             raise SaasException(f"Failed to verify user ID: {e}")
 
     def change_dell_idrac_user_password(self, user_id: str, password: str):
-        url = f"http://{self.__idrac_ip}/redfish/v1/AccountService/Accounts/{user_id}"
+        url = ACCOUNT_SERVICE_URL.format(idrac_ip=self.__idrac_ip,user_id=user_id)
         payload = {"Password": password}
         try:
             response = requests.patch(url, json=payload, auth=(self.__admin_username, self.__admin_password))
