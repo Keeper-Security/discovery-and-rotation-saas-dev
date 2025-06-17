@@ -11,6 +11,10 @@ class SaasPlugin(SaasPluginBase):
     # Name of the plugin.
     # This should not be changed after the release; it will affect the customer's mapping.
     name = "Hello World"
+    summary = "Simple Hello Plugin"
+    readme = None
+    author = "John Doe"
+    email = "jdoe@hotmail.com"
 
     @classmethod
     def config_schema(cls) -> List[SaasConfigItem]:

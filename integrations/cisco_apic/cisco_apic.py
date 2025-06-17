@@ -5,17 +5,20 @@ from kdnrm.exceptions import SaasException
 from typing import List, TYPE_CHECKING
 from kdnrm.log import Log
 from tempfile import NamedTemporaryFile
-try:  # pragma: no cover
-    import requests
-except ImportError:  # pragma: no cover
-    raise SaasException("Missing required module: boto3. Please install it using \"pip install requests\"")
+import requests
+
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
 
 
 class SaasPlugin(SaasPluginBase):
+
     name = "Cisco APIC"
+    summary = "Change a user password in Cisco APIC."
+    readme = "README.md"
+    author = "Keeper Security"
+    email = "pam@keepersecurity.com"
 
     def __init__(self, user: SaasUser, config_record: Record, provider_config=None, force_fail=False):
         super().__init__(user, config_record, provider_config, force_fail)

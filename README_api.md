@@ -97,6 +97,13 @@ from kdnrm.saas_plugins import SaasConfigItem
 from kdnrm.saas_type import ReturnCustomField
 from typing import Optional, List, Any, TYPE_CHECKING
 
+# Only needed if you need a special module.
+# Should match requirements.
+try:  # pragma: no cover
+    import some_sdk_module
+except ImportError:  # pragma: no cover
+    pass
+
 if TYPE_CHECKING:
     from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
@@ -104,11 +111,24 @@ if TYPE_CHECKING:
 
 class SaasPluginBase:
     
+    # Name of the Plugin. Do not change after setting commiting.
     name = "NA"
+    
+    # Short summary of the plugin.
+    summary = ""
+    
+    # Path to documentation in the repo.
+    readme = None
+    
+    # Name of the person who wrote the plugin.
+    author = None
+    
+    # Email for contact.
+    email = None
     
     @classmethod
     def requirements(cls) -> List[str]:
-        return []
+        return ["some_sdk_module"]
     
     @classmethod
     def config_schema(cls) -> List[SaasConfigItem]:
@@ -274,6 +294,21 @@ To use, include in method in your plugin to override the default method.
 If the modules are not installed, they will be installed into the Gateway's Python site-package.
 If the module is used by the Gateway, and a version is specified, the module will not be updated.
 
+For local testing, and syntax checking of your editor, place the following.
+
+```python
+try:  # pragma: no cover
+    import some_sdk_module
+    import another_sdk_module
+except ImportError:  # pragma: no cover
+    pass
+```
+
+The SaaS framework will check the modules in the requirements, which also loads them.
+The `try/except` allows plugin to be loaded before the requirements have been installed, which
+  allows the requirements to checked.
+
+
 
 ```python
 @classmethod
@@ -303,7 +338,7 @@ def config_schema(cls) -> List[dict]:
         SaasConfigItem(
             id="my_plikgin_token",
             label="Plugin Token",
-            desc="The token"
+            desc="The token",
             type="password",
             required=True
         ),

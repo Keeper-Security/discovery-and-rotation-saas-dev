@@ -1,54 +1,11 @@
 #!python
 
-from workflow_base import WorkflowBase
+from plugin_dev.test_base import WorkflowBase, PluginVisitor
 import os
 import yaml
 import json
 import ast
 import sys
-
-
-class PluginValidator(ast.NodeVisitor):
-
-    def __init__(self):
-        super().__init__()
-
-        self.schema = []
-
-    def visit_FunctionDef(self, node):
-        if node.name == "config_schema":
-            assigned_lists = {}
-
-            for stmt in node.body:
-                if isinstance(stmt, ast.Assign):
-                    if isinstance(stmt.value, ast.List):
-                        list_items = self._extract_saas_config_items(stmt.value.elts)
-                        for target in stmt.targets:
-                            if isinstance(target, ast.Name):
-                                assigned_lists[target.id] = list_items
-                if isinstance(stmt, ast.Return):
-                    if isinstance(stmt.value, ast.List):
-                        self.schema.extend(self._extract_saas_config_items(stmt.value.elts))
-                    elif isinstance(stmt.value, ast.Name):
-                        var_name = stmt.value.id
-                        self.schema.extend(assigned_lists.get(var_name, []))
-
-        self.generic_visit(node)  # Continue visiting the body
-
-    @staticmethod
-    def _extract_saas_config_items(elts):
-        config_items = []
-        for item in elts:
-            if isinstance(item, ast.Call) and getattr(item.func, 'id', '') == "SaasConfigItem":
-                item_dict = {}
-                for kw in item.keywords:
-                    val = kw.value
-                    if isinstance(val, ast.Constant):
-                        item_dict[kw.arg] = val.value
-                    elif isinstance(val, ast.NameConstant):
-                        item_dict[kw.arg] = val.value
-                config_items.append(item_dict)
-        return config_items
 
 
 class Package(WorkflowBase):
@@ -85,37 +42,29 @@ class Package(WorkflowBase):
                 self.logger.warning(f"  !! {plugin_file} does not exists, slipping.")
                 continue
 
-            meta_file = os.path.join(self.base_dir, "integrations", entry, "meta.yml")
-            if os.path.exists(meta_file) is True:
-                with open(meta_file, 'r') as fh:
-                    data = yaml.safe_load(fh)
-                    name = data.get("name")
-                    data["summary"] = data.get("summary").strip()
-                    if name in package_dict:
-                        raise ValueError(f"Duplicate plugin name for {name}.")
-                    data.pop("type", None)
+            data = {}
 
-                    data["file"] = "https://raw.githubusercontent.com/Keeper-Security"\
-                                   f"/discovery-and-rotation-saas-dev/refs/heads/main/integrations"\
-                                   f"/{entry}/{entry}.py"
+            with open(plugin_file, "r", encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+                info = PluginVisitor()
+                info.visit(tree)
 
-                    if data.get("readme") is not None:
-                        url = "https://github.com/Keeper-Security"\
-                              "/discovery-and-rotation-saas-dev/blob/main/integrations/"\
-                              f"{entry}/{data.get('readme')}"
-                        data["readme"] = url
-                    package_dict[name] = data
-                    fh.close()
-
-                with open(plugin_file, "r", encoding="utf-8") as fh:
-                    tree = ast.parse(fh.read())
-                    finder = PluginValidator()
-                    finder.visit(tree)
-                    if len(finder.schema) == 0:
-                        self.logger.warning("  !! plugin does not have a schema section")
-                    data["schema"] = finder.schema
-            else:
-                self.logger.warning(f"  !! {meta_file} is missing, skipping.")
+                data["name"] = info.name
+                data["type"] = "catalog"
+                data["author"] = info.author
+                data["email"] = info.email
+                data["summary"] = info.summary
+                data["file"] = "https://raw.githubusercontent.com/Keeper-Security"\
+                               f"/discovery-and-rotation-saas-dev/refs/heads/main/integrations"\
+                               f"/{entry}/{entry}.py"
+                data["schema"] = info.schema
+                data["readme"] = None
+                if info.readme is not None:
+                    url = "https://github.com/Keeper-Security" \
+                          "/discovery-and-rotation-saas-dev/blob/main/integrations/" \
+                          f"{entry}/{info.readme}"
+                    data["readme"] = url
+                package_dict[info.name] = data
 
         self.logger.info("Saving catalog.json")
 

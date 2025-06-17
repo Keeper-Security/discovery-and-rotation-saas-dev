@@ -1,11 +1,11 @@
 from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
+from .cisco_apic import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser
 from kdnrm.exceptions import SaasException
-from cisco_apic import SaasPlugin
 from requests import Response
 from requests.cookies import RequestsCookieJar
 from typing import Optional
