@@ -1,23 +1,22 @@
 from __future__ import annotations
 from kdnrm.saas_plugins import SaasPluginBase
-from kdnrm.exceptions import SaasException
 from kdnrm.saas_type import SaasConfigItem, ReturnCustomField, SaasConfigEnum
 from kdnrm.log import Log
 from kdnrm.secret import Secret
 from datetime import datetime
 from contextlib import redirect_stdout
 import io
+from art import tprint
 from typing import List
-
-try:  # pragma: no cover
-    from art import tprint
-except ImportError:  # pragma: no cover
-    pass
 
 
 class SaasPlugin(SaasPluginBase):
 
     name = "Dummy"
+    summary = "Simple plugin that prints a message to the log and added a field to PAM User record."
+    readme = "README.md"
+    author = "Keeper Security"
+    email = "pam@keepersecurity.com"
 
     @classmethod
     def config_schema(cls) -> List[SaasConfigItem]:

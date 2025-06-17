@@ -1,10 +1,10 @@
 from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock
+from .dummy import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser
-from .dummy import SaasPlugin
 from typing import Optional
 
 

@@ -40,4 +40,5 @@ jobs:
         # All the integrations in the repo should already be valid.
         # If this fails, that means this PR for an integration is invalid.
         run: |
+          export PYTHONPATH="$PYTHONPATH:."
           python3 ./workflow/validate.py "${{ github.event.pull_request.base.ref }}"

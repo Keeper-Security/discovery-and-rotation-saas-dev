@@ -5,11 +5,8 @@ from kdnrm.exceptions import SaasException
 from botocore.exceptions import ClientError
 from typing import List, TYPE_CHECKING
 from kdnrm.log import Log
+import boto3
 
-try:  # pragma: no cover
-    import boto3
-except ImportError:  # pragma: no cover
-    raise SaasException("Missing required module: boto3 - please install it using  \"pip install boto3\"")
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
@@ -17,6 +14,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class SaasPlugin(SaasPluginBase):
     name = "AWS Cognito"
+    summary = "Change a user password in AWS Cognito."
+    readme = "README.md"
+    author = "Keeper Security"
+    email = "pam@keepersecurity.com"
 
     def __init__(self, user: SaasUser, config_record: Record, provider_config=None, force_fail=False):
         super().__init__(user, config_record, provider_config, force_fail)

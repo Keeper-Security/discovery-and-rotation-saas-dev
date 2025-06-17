@@ -36,6 +36,7 @@ jobs:
 
       - name: Catalog
         run: |
+          export PYTHONPATH="$PYTHONPATH:."
           python3 workflow/package.py
           ls -l
 
