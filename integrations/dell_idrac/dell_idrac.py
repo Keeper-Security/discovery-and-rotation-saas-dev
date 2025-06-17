@@ -1,27 +1,23 @@
 from __future__ import annotations
-
-from typing import List, TYPE_CHECKING
-
 from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
 from kdnrm.saas_plugins import SaasPluginBase
 from kdnrm.saas_type import ReturnCustomField, SaasConfigItem, SaasUser, Secret
+import requests
+from typing import List, TYPE_CHECKING
 
-try:
-    import requests
-except ImportError as exc:
-    raise SaasException(
-        'Missing required module: requests. Please install it using "pip install requests"'
-    ) from exc
-
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from keeper_secrets_manager_core.dto.dtos import Record
 
 ACCOUNT_SERVICE_URL = "https://{idrac_ip}/redfish/v1/AccountService/Accounts/{user_id}"
 
 
 class SaasPlugin(SaasPluginBase):
-    name = "Dell iDRAC Post Rotation Plugin"
+    name = "Dell iDRAC"
+    summary = "Change user password in Integrated Dell Remote Access Controller."
+    readme = "README.md"
+    author = "Keeper Security"
+    email = "pam@keepersecurity.com"
 
     def __init__(
         self,
@@ -44,12 +40,15 @@ class SaasPlugin(SaasPluginBase):
     def config_schema(cls) -> List[SaasConfigItem]:
         return [
             SaasConfigItem(
-                id="login", label="UserName", desc="Admin UserName", required=True
+                id="login",
+                label="Admin Username",
+                desc="Username of the administrator.",
+                required=True
             ),
             SaasConfigItem(
                 id="password",
-                label="Password",
-                desc="Admin Dell iDRAC Password",
+                label="Admin Password",
+                desc="Password for the administrator.",
                 type="secret",
                 required=True,
             ),
@@ -62,7 +61,7 @@ class SaasPlugin(SaasPluginBase):
             ),
             SaasConfigItem(
                 id="user_id",
-                label="USER_ID",
+                label="User ID",
                 desc="User ID",
                 type="text",
                 required=False,
@@ -73,25 +72,12 @@ class SaasPlugin(SaasPluginBase):
     def can_rollback(self) -> bool:
         return True
 
-    def add_return_field(self, field: ReturnCustomField):
-        try:
-            self.return_fields.append(field)
-            Log.debug("Added return field")
-        except Exception as e:
-            Log.error("Failed to add return field", exc_info=True)
-            raise SaasException(f"Error adding return field: {e}") from e
-
     def change_password(self):
         Log.info("Changing password for Dell iDRAC Plugin user")
 
         admin_username = self.get_config("login")
         admin_password = self.get_config("password")
         idrac_ip = self.get_config("idrac_ip")
-
-        if not all([admin_username, admin_password, idrac_ip]):
-            raise SaasException(
-                'Missing required config fields: "login", "password", or "idrac_ip"'
-            )
 
         client = DelliDRACClient(admin_username, admin_password, idrac_ip, self.user)
         user_id = self.get_config("user_id") or client.get_user_id_from_user_fields()
@@ -142,6 +128,7 @@ class DelliDRACClient:
         for field in self.__user.fields:
             if field.label == "user_id" and field.values:
                 return field.values[-1]
+        return None
 
     def check_username_by_id(self, user_id: str):
         url = ACCOUNT_SERVICE_URL.format(idrac_ip=self.__idrac_ip, user_id=user_id)
