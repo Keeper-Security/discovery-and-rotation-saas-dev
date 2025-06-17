@@ -25,12 +25,19 @@ In order to use the post-rotation script, you will need the following prerequisi
 ### 2. Create User
 Follow the below steps to create a user in dell iDRAC 
 - Go to **iDRAC Settings** and click on **User** tab.
+
     <img src="images/login.png" width="350" alt="login">
+
     <img src="images/overview.png" width="350" alt="overview">
+
 - Select the **Local Users** option.
+
     <img src="images/users_tab.png" width="350" alt="users_tab">
+
 - Click on **Add** tab. 
+
     <img src="images/add_tab.png" width="350" alt="add_tab">
+
     <img src="images/add_new_user.png" width="350" alt="add_new_user">
 
 
@@ -68,9 +75,11 @@ Follow the below steps to create a user in dell iDRAC
 > **Note:** User ID field is optional, If it is not created here then this field must be added in Pam User Record.
 
 - Please provide the requested details, and this will create a record in the shared folder.
+
     <img src="images/config_create.png" width="350" alt="config_create">
 
 - Above command create a Login record inside keeper folder.
+
     <img src="images/keeper_config_create.png" width="350" alt="keeper_config_create">
 
 ### 2. Copy the UID:
@@ -93,6 +102,7 @@ Once you have your pre-requisites ready, make sure you cover the following:
     <img src="images/plugin_run.png" width="350" alt="plugin_run">
 
 - The above command rotate the dell user's password.
+
     <img src="images/keeper_password_rotated.png" width="350" alt="keeper_password_rotated">
 
 
