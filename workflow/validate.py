@@ -1,62 +1,12 @@
-from workflow_base import WorkflowBase
+from plugin_dev.test_base import WorkflowBase, PluginVisitor
 from importlib import import_module
 import subprocess
 import os
-import yaml
 import ast
 import sys
 import tempfile
 import json
 from colorama import Fore, Style
-
-
-class PluginValidator(ast.NodeVisitor):
-
-    def __init__(self):
-        super().__init__()
-
-        self.schema = []
-        self.has_schema_method = False
-        self.has_change_password = False
-        self.required_modules = []
-
-    def visit_FunctionDef(self, node):
-        if node.name == "config_schema":
-            self.has_schema_method = True
-            assigned_lists = {}
-
-            for stmt in node.body:
-                if isinstance(stmt, ast.Assign):
-                    if isinstance(stmt.value, ast.List):
-                        list_items = self._extract_saas_config_items(stmt.value.elts)
-                        for target in stmt.targets:
-                            if isinstance(target, ast.Name):
-                                assigned_lists[target.id] = list_items
-                if isinstance(stmt, ast.Return):
-                    if isinstance(stmt.value, ast.List):
-                        self.schema.extend(self._extract_saas_config_items(stmt.value.elts))
-                    elif isinstance(stmt.value, ast.Name):
-                        var_name = stmt.value.id
-                        self.schema.extend(assigned_lists.get(var_name, []))
-        elif node.name == "change_password":
-            self.has_change_password = True
-
-        self.generic_visit(node)  # Continue visiting the body
-
-    @staticmethod
-    def _extract_saas_config_items(elts):
-        config_items = []
-        for item in elts:
-            if isinstance(item, ast.Call) and getattr(item.func, 'id', '') == "SaasConfigItem":
-                item_dict = {}
-                for kw in item.keywords:
-                    val = kw.value
-                    if isinstance(val, ast.Constant):
-                        item_dict[kw.arg] = val.value
-                    elif isinstance(val, ast.NameConstant):
-                        item_dict[kw.arg] = val.value
-                config_items.append(item_dict)
-        return config_items
 
 
 class Validate(WorkflowBase):
@@ -79,41 +29,32 @@ class Validate(WorkflowBase):
             main_file = f"{entry}.py"
 
             init_file = os.path.join(self.base_dir, "integrations", entry, "__init__.py")
-            if os.path.exists(init_file) is False:
+            if not os.path.exists(init_file):
                 with open(init_file, "w") as fh:
                     fh.write("")
                     fh.close()
 
             plugin_file = os.path.join(self.base_dir, "integrations", entry, main_file)
-            if os.path.exists(plugin_file) is False:
+            if not os.path.exists(plugin_file):
                 raise ValueError(f"The python file '{entry}.py' file is missing for plugin {entry}")
 
             with open(plugin_file, "r", encoding="utf-8") as fh:
                 tree = ast.parse(fh.read())
-                finder = PluginValidator()
-                finder.visit(tree)
-                if len(finder.schema) == 0:
-                    raise ValueError(f"The python file '{main_file}' file is missing the config_schema method")
+                validation = PluginVisitor()
+                validation.visit(tree)
 
-            meta_file = os.path.join(self.base_dir, "integrations", entry, "meta.yml")
-            if os.path.exists(meta_file) is True:
-                with open(meta_file, 'r') as fh:
-                    data = yaml.safe_load(fh)
-                    name = data.get("name")
-                    author = data.get("author")
-                    email = data.get("email")
-                    summary = data.get("summary")
-                    if name is None or name == "":
-                        ValueError(f"!! the meta.yml file is missing the 'name' for {entry}")
-                    if author is None or author == "":
-                        ValueError(f"!! the meta.yml file is missing the 'author' for {entry}")
-                    if email is None or email == "":
-                        ValueError(f"!! the meta.yml file is missing the 'email' for {entry}")
-                    if summary is None or summary == "":
-                        ValueError(f"!! the meta.yml file is missing the 'summary' for {entry}")
-                    fh.close()
-            else:
-                raise ValueError(f"The 'meta.yml' file is missing for plugin {entry}")
+                if validation.name is None or validation.name == "":
+                    raise ValueError(f"The python file '{main_file}' file is blank the 'name' class attribute.")
+                if validation.summary is None or validation.summary == "":
+                    raise ValueError(f"The python file '{main_file}' file is blank the 'summary' class attribute.")
+                if validation.readme is None or validation.readme == "":
+                    raise ValueError(f"The python file '{main_file}' file is blank the 'readme' class attribute.")
+                if validation.author is None or validation.author == "":
+                    raise ValueError(f"The python file '{main_file}' file is blank the 'author' class attribute.")
+                if validation.email is None or validation.email == "":
+                    raise ValueError(f"The python file '{main_file}' file is blank the 'email' class attribute.")
+                if len(validation.schema) == 0:
+                    raise ValueError(f"The python file '{main_file}' file is missing the config_schema method")
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 self.logger.info(f"temp directory is {temp_dir}")
@@ -134,7 +75,7 @@ class Validate(WorkflowBase):
                     self.logger.debug(f"{Fore.RED}{process.stderr}{Style.RESET_ALL}")
 
                 requirements_test_file = os.path.join(self.base_dir, "integrations", entry, "requirements_test.txt")
-                if os.path.exists(requirements_test_file) is True:
+                if os.path.exists(requirements_test_file):
                     cmd = f"source {temp_dir}/test_venv/bin/activate && pip install -r {requirements_test_file}"
                     process = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
                     self.logger.debug(f"{Fore.WHITE}{process.stdout}{Style.RESET_ALL}")
@@ -142,19 +83,17 @@ class Validate(WorkflowBase):
                         self.logger.debug(f"{Fore.RED}{process.stderr}{Style.RESET_ALL}")
 
                 config_json_file = os.path.join(self.base_dir, "integrations", entry, "config.json")
-                if os.path.exists(config_json_file) is True:
+                if os.path.exists(config_json_file):
                     raise Exception("A config.json file detected in the plugin directory. Please remove this file.")
 
                 try:
-                    plugin_mod = import_module(f"integrations.{entry}.{entry}")
-                    plugin_class = getattr(plugin_mod, "SaasPlugin")
-                    mods = getattr(plugin_class, 'requirements')()
-
-                    cmd = f"source {temp_dir}/test_venv/bin/activate && pip install {' '.join(mods)}"
-                    process = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
-                    self.logger.debug(f"{Fore.WHITE}{process.stdout}{Style.RESET_ALL}")
-                    if process.stderr is not None and process.stderr != "":
-                        self.logger.debug(f"{Fore.RED}{process.stderr}{Style.RESET_ALL}")
+                    packages = validation.requirements
+                    if len(packages) > 0:
+                        cmd = f"source {temp_dir}/test_venv/bin/activate && pip install {' '.join(packages)}"
+                        process = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
+                        self.logger.debug(f"{Fore.WHITE}{process.stdout}{Style.RESET_ALL}")
+                        if process.stderr is not None and process.stderr != "":
+                            self.logger.debug(f"{Fore.RED}{process.stderr}{Style.RESET_ALL}")
 
                 except Exception as err:
                     self.logger.error(str(err))
@@ -175,7 +114,7 @@ class Validate(WorkflowBase):
                     self.logger.debug(f"{Fore.RED}{process.stderr}{Style.RESET_ALL}")
 
                 coverage_file = os.path.join(self.base_dir, "integrations", entry, "coverage.json")
-                if os.path.exists(coverage_file) is False:
+                if not os.path.exists(coverage_file):
                     raise Exception("No coverage file found")
 
                 with open(coverage_file, "r") as fh:
@@ -193,4 +132,12 @@ class Validate(WorkflowBase):
 
 if __name__ == "__main__":
     validate = Validate()
-    validate.run(ref=sys.argv[1])
+    ref = "main"
+    if len(sys.argv) > 1:
+        ref = sys.argv[1]
+
+    try:
+        validate.run(ref=ref)
+    except Exception as err:
+        print(f"{Fore.RED}TEST FAIL: {err}{Style.RESET_ALL}")
+        sys.exit(1)

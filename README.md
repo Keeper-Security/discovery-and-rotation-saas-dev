@@ -54,15 +54,6 @@ Next you need a Keeper Secrets Manager configuration.
 cp /path/to/downloaded/config.json .
 ```
 
-#### meta.yml
-
-The meta.yml file contains one record.
-* name - The name of the plugin. Once set cannot be changed.
-* author - Name of the author of the plugin.
-* email - Email address of the author of the plugin.
-* summary - Short summary of the plugin. More detail information can be in the `readme`
-* readme - The name of documentation in the work directory. Normally this is `README.md`.
-
 #### Unit Test
 
 Tests are required.
@@ -80,7 +71,6 @@ The final structure should look like this.
 .
 └── my_plugin
     ├── config.json
-    ├── meta.yml
     ├── my_plugin_test.py
     ├── my_plugin.py
     ├── README.md

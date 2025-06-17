@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 class SaasPluginBase:
 
     name = "NA"
+    summary = ""
+    readme = None
+    author = None
+    email = None
 
     @classmethod
     def requirements(cls) -> List[str]:

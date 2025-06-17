@@ -1,11 +1,11 @@
 from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
+from .aws_cognito import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser, AwsConfig
 from kdnrm.exceptions import SaasException
-from aws_cognito import SaasPlugin
 from botocore.exceptions import ClientError
 from typing import Optional, Any, List
 
