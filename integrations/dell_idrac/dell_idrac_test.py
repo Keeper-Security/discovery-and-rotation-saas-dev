@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 from kdnrm.secret import Secret
 from kdnrm.saas_type import SaasUser
 from kdnrm.exceptions import SaasException
-from dell_idrac import SaasPlugin, DelliDRACClient
+from dell_idrac import SaasPlugin, DelliDRACClient, ACCOUNT_SERVICE_URL
+from requests.exceptions import RequestException
 from kdnrm.log import Log
 
 class DellIDRACTest(unittest.TestCase):
@@ -130,8 +131,6 @@ class DelliDRACClientTest(unittest.TestCase):
         mock_response.status_code = 200
         mock_response.json.return_value = {"UserName": "testuser"}
         mock_get.return_value = mock_response
-
-        # Should not raise
         self.client.check_username_by_id("42")
 
     @patch("dell_idrac.requests.get")
@@ -156,7 +155,7 @@ class DelliDRACClientTest(unittest.TestCase):
         self.assertIn("User not present in Dell iDRAC", str(ctx.exception))
 
     @patch("dell_idrac.requests.get")
-    def test_check_username_by_id_unexpected_error(self, mock_get):
+    def test_check_username_by_id_internal_server_error(self, mock_get):
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
@@ -164,22 +163,30 @@ class DelliDRACClientTest(unittest.TestCase):
 
         with self.assertRaises(SaasException) as ctx:
             self.client.check_username_by_id("42")
-        self.assertIn("Unexpected error: 500", str(ctx.exception))
+        self.assertIn("Internal server error while verifying user ID", str(ctx.exception))
 
-    @patch("dell_idrac.requests.get", side_effect=Exception("Network error"))
+
+    @patch("dell_idrac.requests.get", side_effect=RequestException("Network error"))    
     def test_check_username_by_id_exception(self, mock_get):
         with self.assertRaises(SaasException) as ctx:
             self.client.check_username_by_id("42")
-        self.assertIn("Failed to verify user ID: Network error", str(ctx.exception))
+        self.assertIn("Request failed while verifying user ID: Network error", str(ctx.exception))
 
     @patch("dell_idrac.requests.patch")
     def test_change_dell_idrac_user_password_success(self, mock_patch):
         mock_response = MagicMock()
         mock_response.status_code = 204
         mock_patch.return_value = mock_response
-
-        # Should not raise
         self.client.change_dell_idrac_user_password("42", "newpass")
+        expected_url = ACCOUNT_SERVICE_URL.format(idrac_ip=self.client._DelliDRACClient__idrac_ip, user_id="42")
+        expected_payload = {"Password": "newpass"}
+        expected_auth = (self.client._DelliDRACClient__admin_username, self.client._DelliDRACClient__admin_password)
+        mock_patch.assert_called_once_with(
+            expected_url,
+            json=expected_payload,
+            auth=expected_auth,
+            timeout=10,
+        )
 
     @patch("dell_idrac.requests.patch")
     def test_change_dell_idrac_user_password_failure(self, mock_patch):

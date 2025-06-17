@@ -20,7 +20,7 @@ In order to use the post-rotation script, you will need the following prerequisi
 - Go to [Dell Open Manage idrac](https://www.dell.com/en-in/lp/dt/open-manage-idrac) 
 - Click on -> **Launch Hands-On Lab** 
 - Launch the sandbox instance.
-- Open Google Chrome which have instance of **dell idrac** and **tester api** instance.
+- Open any web browser which have instance of **dell idrac** and **tester api** instance.
 
 ### 2. Create User
 Follow the below steps to create a user in dell iDRAC 
