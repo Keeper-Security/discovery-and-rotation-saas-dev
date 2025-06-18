@@ -1,7 +1,7 @@
 from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
-from .aws_cognito import SaasPlugin
+from integrations.aws_cognito.aws_cognito import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser, AwsConfig
@@ -148,39 +148,49 @@ class AwsCognitoTest(unittest.TestCase):
         except Exception as err:
             self.fail(f"got wrong exception: {err}")
 
-    def test_change_password_missing_access_key_id(self):
+    def test_change_password_missing_access_key_id_no_session(self):
 
-        try:
-            plugin = self.plugin(field_values=["POOL_ID", None, "SECRET KEY", "us-east-1"])
-            with patch("boto3.client") as mock_client:
-                mock_cognito_idp = MagicMock()
-                mock_client.return_value = mock_cognito_idp
+        # If you have a .aws directory in your home directory, it will consider a stored credentials as a session.
+        # Prevent this.
+        with patch("integrations.aws_cognito.aws_cognito.SaasPlugin._using_session") as mock_session:
+            mock_session.return_value = None
 
-                plugin.change_password()
-            raise Exception("should have failed")
-        except SaasException as err:
-            print(str(err))
-            if "AWS Access Key ID" not in str(err):
-                self.fail("did not message containing 'AWS Access Key ID'")
-        except Exception as err:
-            self.fail(f"got wrong exception: {err}")
+            try:
+                plugin = self.plugin(field_values=["POOL_ID", None, "SECRET KEY", "us-east-1"])
+                with patch("boto3.client") as mock_client:
+                    mock_cognito_idp = MagicMock()
+                    mock_client.return_value = mock_cognito_idp
 
-    def test_change_password_missing_access_secret_key(self):
+                    plugin.change_password()
+                raise Exception("should have failed")
+            except SaasException as err:
+                print(str(err))
+                if "AWS Access Key ID" not in str(err):
+                    self.fail("did not message containing 'AWS Access Key ID'")
+            except Exception as err:
+                self.fail(f"got wrong exception: {err}")
 
-        try:
-            plugin = self.plugin(field_values=["POOL_ID", "ACCESS ID", None, "us-east-1"])
-            with patch("boto3.client") as mock_client:
-                mock_cognito_idp = MagicMock()
-                mock_client.return_value = mock_cognito_idp
+    def test_change_password_missing_access_secret_key_no_session(self):
 
-                plugin.change_password()
-            raise Exception("should have failed")
-        except SaasException as err:
-            print(str(err))
-            if "AWS Secret Access Key" not in str(err):
-                self.fail("did not message containing 'AWS Secret Access Key'")
-        except Exception as err:
-            self.fail(f"got wrong exception: {err}")
+        # If you have a .aws directory in your home directory, it will consider a stored credentials as a session.
+        # Prevent this.
+        with patch("integrations.aws_cognito.aws_cognito.SaasPlugin._using_session") as mock_session:
+            mock_session.return_value = None
+
+            try:
+                plugin = self.plugin(field_values=["POOL_ID", "ACCESS ID", None, "us-east-1"])
+                with patch("boto3.client") as mock_client:
+                    mock_cognito_idp = MagicMock()
+                    mock_client.return_value = mock_cognito_idp
+
+                    plugin.change_password()
+                raise Exception("should have failed")
+            except SaasException as err:
+                print(str(err))
+                if "AWS Secret Access Key" not in str(err):
+                    self.fail("did not message containing 'AWS Secret Access Key'")
+            except Exception as err:
+                self.fail(f"got wrong exception: {err}")
 
     def test_change_password_missing_region(self):
 
