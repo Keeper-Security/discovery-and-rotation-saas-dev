@@ -6,9 +6,18 @@ import yaml
 import json
 import ast
 import sys
+import hmac
+import hashlib
 
 
 class Package(WorkflowBase):
+
+    @staticmethod
+    def make_script_signature(plugin_code_bytes: bytes) -> str:
+
+        # To use HMAC, we need to have a key; the key is not a secret, we just want to make a unique digest.
+        this_is_not_a_secret = b"NOT_IMPORTANT"
+        return hmac.new(this_is_not_a_secret, plugin_code_bytes, hashlib.sha256).hexdigest()
 
     def run(self):
 
@@ -38,16 +47,20 @@ class Package(WorkflowBase):
             self.logger.debug(f"  * {entry}")
 
             plugin_file = os.path.join(self.base_dir, "integrations", entry, f"{entry}.py")
-            if os.path.exists(plugin_file) is False:
-                self.logger.warning(f"  !! {plugin_file} does not exists, slipping.")
+            if not os.path.exists(plugin_file):
+                self.logger.warning(f"  !! {plugin_file} does not exists, skipping.")
                 continue
 
             data = {}
 
-            with open(plugin_file, "r", encoding="utf-8") as fh:
-                tree = ast.parse(fh.read())
+            with open(plugin_file, "rb") as fh:
+                plugin_code_bytes = fh.read()
+
+                tree = ast.parse(plugin_code_bytes.decode("utf-8"))
                 info = PluginVisitor()
                 info.visit(tree)
+
+                sig = self.make_script_signature(plugin_code_bytes=plugin_code_bytes)
 
                 data["name"] = info.name
                 data["type"] = "catalog"
@@ -57,6 +70,7 @@ class Package(WorkflowBase):
                 data["file"] = "https://raw.githubusercontent.com/Keeper-Security"\
                                f"/discovery-and-rotation-saas-dev/refs/heads/main/integrations"\
                                f"/{entry}/{entry}.py"
+                data["file_sig"] = sig
                 data["schema"] = info.schema
                 data["readme"] = None
                 if info.readme is not None:
@@ -68,9 +82,9 @@ class Package(WorkflowBase):
 
         self.logger.info("Saving catalog.json")
 
-        package = [v for k,v in package_dict.items()]
+        p = [v for k, v in package_dict.items()]
         with open(os.path.join(self.base_dir, "catalog.json"), 'w') as fh:
-            fh.write(json.dumps(package, sort_keys=False, indent=4))
+            fh.write(json.dumps(p, sort_keys=False, indent=4))
             fh.close()
 
 
