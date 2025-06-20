@@ -33,7 +33,6 @@ class Package(WorkflowBase):
         with open(os.path.join(self.base_dir, "workflow", "builtin.yml"), 'r') as fh:
             datas = yaml.safe_load_all(fh)
             for data in datas:
-                print(data)
                 if data.get("summary") is not None:
                     data["summary"] = data.get("summary").strip()
                 package_dict[data.get("name")] = data
