@@ -70,7 +70,7 @@ class Package(WorkflowBase):
                                f"/discovery-and-rotation-saas-dev/refs/heads/main/integrations"\
                                f"/{entry}/{entry}.py"
                 data["file_sig"] = sig
-                data["schema"] = info.schema
+                data["fields"] = info.schema
                 data["readme"] = None
                 if info.readme is not None:
                     url = "https://github.com/Keeper-Security" \
