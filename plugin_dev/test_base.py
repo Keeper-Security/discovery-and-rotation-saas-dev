@@ -68,6 +68,7 @@ class WorkflowBase:
 
         return changed
 
+
 class PluginVisitor(ast.NodeVisitor):
     def __init__(self):
         self._requirements: List[Dict[str, Any]] = []
@@ -120,14 +121,27 @@ class PluginVisitor(ast.NodeVisitor):
     @staticmethod
     def _extract_saas_config_items(elts):
         config_items = []
+
+        def extract_value(val):
+            if isinstance(val, ast.Constant):
+                return val.value
+            elif isinstance(val, ast.List):
+                return [extract_value(e) for e in val.elts]
+            elif isinstance(val, ast.Call):
+                if getattr(val.func, 'id', '') == "SaasConfigEnum":
+                    enum_dict = {}
+                    for kw in val.keywords:
+                        enum_dict[kw.arg] = extract_value(kw.value)
+                    return enum_dict
+            return None  # or raise or log unhandled case
+
         for item in elts:
             if isinstance(item, ast.Call) and getattr(item.func, 'id', '') == "SaasConfigItem":
                 item_dict = {}
                 for kw in item.keywords:
-                    val = kw.value
-                    if isinstance(val, ast.Constant):
-                        item_dict[kw.arg] = val.value
+                    item_dict[kw.arg] = extract_value(kw.value)
                 config_items.append(item_dict)
+
         return config_items
 
     def visit_FunctionDef(self, node: ast.FunctionDef):

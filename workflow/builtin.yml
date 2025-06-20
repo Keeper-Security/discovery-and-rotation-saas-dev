@@ -47,6 +47,9 @@ schema:
   code: gateway_kdnrm_saas_rest_method
   type: enum
   required: false
+  enum_values:
+  - value: POST
+  - value: PUT
 ---
 name: Cisco Meraki
 type: builtin
@@ -139,6 +142,9 @@ schema:
   type: enum
   required: true
   default_value: All
+  enum_values:
+  - value: All
+  - value: Replace
 ---
 name: Snowflake
 type: builtin
@@ -232,3 +238,7 @@ schema:
   type: enum
   required: true
   default_value: All
+  enum_values:
+  - value: All
+  - value: Oldest
+  - value: Replace
