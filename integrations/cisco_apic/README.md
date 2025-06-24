@@ -13,14 +13,6 @@ The [Cisco Application Policy Infrastructure Controller (APIC)](https://www.cisc
 It's a software-defined networking (SDN) controller that manages and enforces policies, provides visibility and 
   control over network resources, and orchestrates network provisioning. 
 
-### Required Setup/Information
-
-
-
-
-
-
-
 ## Commander
 
 ### Create SaaS Configuration Record
@@ -46,49 +38,52 @@ Next use `pam action saas config`, with `--info` flag and `-p "Cisco APIC"`, to 
 ```
 My Vault> pam action saas config -g <GATEWAY> -p "Cisco APIC" --info
 
-AWS Cognito
+Cisco APIC
   Type: catalog
   Author: Keeper Security (pam@keepersecurity.com)
-  Summary: Change a users password in AWS Cognito.
-  Documents: https://github.com/Keeper-Security/discovery-and-rotation-saas-dev/blob/main/integrations/aws_cognito/README.md
+  Summary: Change a user password in Cisco APIC.
+  Documents: https://github.com/Keeper-Security/discovery-and-rotation-saas-dev/blob/main/integrations/cisco_apic/README.md
 
   Fields
-   * Required: User Pool ID - User Pool ID. 
-   * Optional: AWS Access Key ID - AWS Access Key ID. Required if not using a PAM AWS Configuration.
-   * Optional: AWS Secret Access Key - AWS Secret Access Key. Required if not using a PAM AWS Configuration.
-   * Optional: AWS Region - AWS Region. Required if not using a PAM AWS Configuration.
+   * Required: Admin Name - A user with administrative role.
+   * Required: Admin Password - Password for the APIC Admin.
+   * Required: URL - The URL to the APIC server.
+   * Optional: Verify SSL - Verify that the SSL certificate is valid: 'True' will validate certificates, 'False' 
+               will allow self-signed certificates.
 ```
 
-Next use `pam action saas config`, with `--create` flag and `-p "AWS Cognito"`, to create a SaaS Configuration Record.
+Next use `pam action saas config`, with `--create` flag and `-p "Cisco APIC"`, to create a SaaS Configuration Record.
 You will be prompted to enter values for the fields.
 Any optional fields that do not have a value will not be added to the record.
 
 ```
-My Vault> pam action saas config -g <GATEWAY UID> -p "AWS Cognito" --create
+My Vault> pam action saas config -g <GATEWAY> -p "Cisco APIC" --create
 
-User Pool ID
-Description: User Pool ID.
+Admin Name
+Description:  user with administrative role.
 Field is required.
-Enter value > us-east-2_XXXXXXX
+Enter value > admin
 
-AWS Access Key ID
-Description: AWS Access Key ID.
-Enter value > AWXXXXXXXXXXXXXXXX
+Admin Password
+Description: Password for the APIC Admin.
+Field is required.
+Enter value > ADMIN_PASSWORD
 
-AWS Secret Access Key
-Description: AWS Secret Access Key.
-Enter value > SECRETKEY
+URL
+Description: The URL to the APIC server.
+Field is required.
+Enter value > https://myapicdc.cisco.com
 
-AWS Region
-Description: AWS Region.
-Enter value > us-east-2
+Verify SSL
+Description: Verify that the SSL certificate is valid: 'True' will validate certificates, 'False' will allow self-signed certificates.
+Enter value (Allowed values: False, True; Enter for default value 'False') >
 
-Title for the SaaS configuration record> AWS Cognito Config
+Title for the SaaS configuration record> Cisco APIC Config
 
-Created SaaS configuration record with UID of XXXXXXXXXXXXXX
+Created SaaS configuration record with UID of XXXXXXXXXXXXXXXXXXXXXX
 
 Assign this configuration to a user using the following command.
-  pam action saas add -c XXXXXXXXXXXXXX -u <PAM User Record UID>
+  pam action saas add -c XXXXXXXXXXXXXXXXXXXXXX -u <PAM User Record UID>
   See pam action saas add --help for more information.
 ```
 
@@ -100,7 +95,7 @@ My Vault> pam action saas add -c XXXXXXXXXXXXXX -u YYYYYYYYYYYY
 Added AWS Cognito rotation to the user record.
 ```
 
-Now when the user's password is rotated, the user's password in AWS Cognito will also be updated.
+Now when the user's password is rotated, the user's password in CiscoAPIC will also be updated.
 
 ## Keeper Vault
 
