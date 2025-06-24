@@ -43,7 +43,6 @@ class AwsCognitoTest(unittest.TestCase):
                 {'type': 'text', 'label': 'AWS Access Key ID', 'value': [field_values[1]]},
                 {'type': 'secret', 'label': 'AWS Secret Access Key', 'value': [field_values[2]]},
                 {'type': 'text', 'label': 'AWS Region', 'value': [field_values[3]]},
-
             ]
         )
 

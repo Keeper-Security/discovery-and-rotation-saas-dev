@@ -5,7 +5,7 @@ This user guide covers the post-rotation script for the Keeper Security / CISCO 
 
 ## CISCO APIC
 The [Cisco Application Policy Infrastructure Controller (APIC)](https://www.cisco.com/c/en_in/products/cloud-systems-management/application-policy-infrastructure-controller-apic/index.html) is the central control point for Cisco's Application Centric Infrastructure (ACI) solution. It's a software-defined networking (SDN) controller that manages and enforces policies, provides visibility and control over network resources, and orchestrates network provisioning. 
-
+https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/apic-rest-api-configuration-guide/cisco-apic-rest-api-configuration-guide-42x-and-later/m_using_the_rest_api.html
 ## Pre-requisites
 In order to use the post-rotation script, you will need the following prerequisites:
 
@@ -82,3 +82,4 @@ Once you have your pre-requisites ready, make sure you cover the following:
 - Keeper Vault PAM User Record is updated.
 
     <img src="images/rotated_password_success.png" width="350" alt="rotated_password_success">
+  
