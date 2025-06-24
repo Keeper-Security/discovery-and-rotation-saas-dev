@@ -18,6 +18,9 @@ It's a software-defined networking (SDN) controller that manages and enforces po
 
 
 
+
+
+
 ## Commander
 
 ### Create SaaS Configuration Record
@@ -25,26 +28,23 @@ It's a software-defined networking (SDN) controller that manages and enforces po
 In Commander, the `pam action saas config` command is used to create a SaaS Configuration record.
 This record currently is a **Login** record where the custom fields are used for settings.
 
-First check if the **AWS Cognito** plugin is available.
+First check if the **Cisco APIC** plugin is available.
 Using the `pam action saas config` command with `--list` flag will show all plugins available to your Keeper Gateway.
 
 ```
 My Vault> pam action saas config -g <GATEWAY UID> --list
 
 Available SaaS Plugins
- * AWS Cognito (Catalog)
- * Cisco APIC (Catalog)
-...
- * REST (Builtin)
- * Snowflake (Builtin)
+ * Cisco APIC (Catalog) - Change a user password in Cisco APIC.
+ ...
 ```
 
-If **AWS Cognito** is in the list, you can use this plugin.
+If **Cisco APIC** is in the list, you can use this plugin.
 
 Before creating the SaaS Configuration Record, you can get a preview of fields you will be prompted for values.
-Next use `pam action saas config`, with `--info` flag and `-p "AWS Cognito"`, to get information about this plugin.
+Next use `pam action saas config`, with `--info` flag and `-p "Cisco APIC"`, to get information about this plugin.
 ```
-My Vault> pam action saas config -g <GATEWAY> -p "AWS Cognito" --info
+My Vault> pam action saas config -g <GATEWAY> -p "Cisco APIC" --info
 
 AWS Cognito
   Type: catalog

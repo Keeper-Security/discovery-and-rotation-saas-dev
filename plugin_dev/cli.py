@@ -290,12 +290,12 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                         Log.debug(f"custom field '{field['label']}' does not exist in user record, adding custom field")
                         user_record.dict["custom"].append(field)
 
-                Log.debug("updating the user record.")
-                user_record.set_standard_field_value("password", new_password)
-                getattr(user_record, "_update")()
-                sm.save(user_record)
+            Log.debug("updating the user record.")
+            user_record.set_standard_field_value("password", new_password)
+            getattr(user_record, "_update")()
+            sm.save(user_record)
 
-                print(f"{Fore.GREEN}Rotation was successful{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Rotation was successful{Style.RESET_ALL}")
 
         except Exception as err:
             Log.traceback(err)

@@ -74,11 +74,10 @@ Using the `pam action saas config` command with `--list` flag will show all plug
 My Vault> pam action saas config -g <GATEWAY UID> --list
 
 Available SaaS Plugins
- * AWS Cognito (Catalog)
- * Cisco APIC (Catalog)
-...
- * REST (Builtin)
- * Snowflake (Builtin)
+ * Custom One (Custom) - Plugin has no description.
+ * AWS Cognito (Catalog) - Change a users password in AWS Cognito.
+ ...
+ * Snowflake (Builtin) - For Snowflake, rotate the password for a user.
 ```
 
 If **AWS Cognito** is in the list, you can use this plugin.
