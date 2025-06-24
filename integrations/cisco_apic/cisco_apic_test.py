@@ -1,6 +1,7 @@
 from __future__ import annotations
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+from plugin_dev.test_base import MockRecord
 from .cisco_apic import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
@@ -27,28 +28,14 @@ class CiscoApicTest(unittest.TestCase):
             prior_password=prior_password
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
                 {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
+                {'type': 'secret', 'label': 'Certificate', 'value': ['BEGIN CERTIFICATE']},
                 {'type': 'url', 'label': 'URL', 'value': ['https://apic.localhost']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            "PASSWORD",
-            "https://apic.localhost"
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         return SaasPlugin(user=user, config_record=config_record)
 
@@ -106,29 +93,13 @@ class CiscoApicTest(unittest.TestCase):
             new_password=Secret("NewPassword123")
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
+                {'type': 'secret', 'label': 'Certificate', 'value': ['BEGIN CERTIFICATE']},
                 {'type': 'url', 'label': 'URL', 'value': ['https://apic.localhost']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            # Missing for `label`, `code` and `id`
-            # Need three Nones to mock a missing field
-            None,
-            "PASSWORD",
-            "https://apic.localhost"
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         try:
             SaasPlugin(user=user, config_record=config_record)
@@ -149,27 +120,13 @@ class CiscoApicTest(unittest.TestCase):
             new_password=Secret("NewPassword123")
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
+                {'type': 'secret', 'label': 'Certificate', 'value': ['BEGIN CERTIFICATE']},
                 {'type': 'url', 'label': 'URL', 'value': ['https://apic.localhost']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            None,
-            "https://apic.localhost"
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         try:
             SaasPlugin(user=user, config_record=config_record)
@@ -190,28 +147,13 @@ class CiscoApicTest(unittest.TestCase):
             new_password=Secret("NewPassword123")
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
                 {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
-
+                {'type': 'secret', 'label': 'Certificate', 'value': ['BEGIN CERTIFICATE']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            "PASSWORD",
-            None
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         try:
             SaasPlugin(user=user, config_record=config_record)
@@ -232,28 +174,14 @@ class CiscoApicTest(unittest.TestCase):
             new_password=Secret("NewPassword123")
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
                 {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
-                {'type': 'url', 'label': 'URL', 'value': ['bad_url']},
+                {'type': 'secret', 'label': 'Certificate', 'value': ['BEGIN CERTIFICATE']},
+                {'type': 'url', 'label': 'URL', 'value': ['ftp://apic.localhost']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            "PASSWORD",
-            "bad_url"
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         try:
             SaasPlugin(user=user, config_record=config_record)
@@ -261,49 +189,6 @@ class CiscoApicTest(unittest.TestCase):
         except SaasException as err:
             if "does not appears to be a URL" not in str(err):
                 self.fail("did not message containing 'does not appears to be a URL'")
-        except Exception as err:
-            self.fail(f"got wrong exception: {err}")
-
-    def test_missing_file_ref(self):
-        """
-        Missing the "fileRef" field.
-
-        All records have "fileRef" so this is almost impossible, but Commander
-        might allow you to do this.
-        """
-
-        user = SaasUser(
-            username=Secret("jdoe"),
-            new_password=Secret("NewPassword123")
-        )
-
-        config_record = MagicMock()
-        config_record.dict = {
-            'custom': [
-                {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
-                {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
-                {'type': 'url', 'label': 'URL', 'value': ['https://apic.localhost']},
-            ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            "PASSWORD",
-            "https://apic.localhost"
-        ]
-        config_record.download_file_by_title.return_value = None
-
-        try:
-            plugin = SaasPlugin(user=user, config_record=config_record)
-            plugin.change_password()
-            raise Exception("should have failed")
-        except SaasException as err:
-            if "Missing 'file ref'" not in str(err):
-                self.fail("did not message containing 'Missing 'file ref''")
         except Exception as err:
             self.fail(f"got wrong exception: {err}")
 
@@ -474,5 +359,3 @@ class CiscoApicTest(unittest.TestCase):
                     self.fail("did not message containing 'Failed to roll back password'")
             except Exception as err:
                 self.fail(f"got wrong exception: {err}")
-
-

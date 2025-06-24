@@ -3,8 +3,37 @@ import logging
 import os
 import subprocess
 import ast
+from keeper_secrets_manager_core.dto.dtos import Record
+from keeper_secrets_manager_core.utils import generate_uid_bytes
 from colorama import Fore, Style
 from typing import List, Dict, Any, Optional
+
+
+class MockRecord(Record):
+
+    # Don't call super
+    def __init__(self,
+                 title: Optional[str] = "SaaS Config",
+                 record_type: str = "login",
+                 uid: Optional[str] = None,
+                 fields: Optional[List[dict]] = None,
+                 custom: Optional[List[dict]] = None):
+
+        if uid is None:
+            uid = generate_uid_bytes()
+
+        self.uid = uid
+        self.title = title
+        self.type = record_type
+        self.files = []
+
+        if fields is None:
+            fields = []
+
+        self.dict = {
+            "fields": fields,
+            "custom": custom
+        }
 
 
 class WorkflowBase:

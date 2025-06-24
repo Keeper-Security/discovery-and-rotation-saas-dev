@@ -1,10 +1,10 @@
 from __future__ import annotations
 import unittest
-from unittest.mock import MagicMock
 from .dummy import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser
+from plugin_dev.test_base import MockRecord
 from typing import Optional
 
 
@@ -24,22 +24,12 @@ class DummyTest(unittest.TestCase):
             prior_password=prior_password
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Dummy Text', 'value': ['SOME TEXT']},
                 {'type': 'text', 'label': 'Font Type', 'value': ['bulbhead']},
             ]
-        }
-        config_record.title = 'Dummy Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "SOME TEXT",
-            "bulbhead"
-        ]
+        )
 
         return SaasPlugin(user=user, config_record=config_record)
 

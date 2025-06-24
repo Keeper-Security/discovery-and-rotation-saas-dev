@@ -17,7 +17,7 @@ In order to use the post-rotation script, you will need the following prerequisi
 
 ## Steps to Test CISCO APIC 
 ### 1. Login to Cisco Sandbox: 
-- Go to the [Cisco DevNet Sandbox](hhttps://developer.cisco.com/)
+- Go to the [Cisco DevNet Sandbox](https://developer.cisco.com/)
 - Log in with your Cisco account credentials.
 
     <img src="images/login_account.png" width="350" alt="login_account">

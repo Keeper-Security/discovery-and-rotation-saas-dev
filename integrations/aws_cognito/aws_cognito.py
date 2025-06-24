@@ -22,8 +22,6 @@ class SaasPlugin(SaasPluginBase):
 
     def __init__(self, user: SaasUser, config_record: Record, provider_config=None, force_fail=False):
         super().__init__(user, config_record, provider_config, force_fail)
-        self.user = user
-        self.config_record = config_record
         self._client = None
     
     @classmethod
