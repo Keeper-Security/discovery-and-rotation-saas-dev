@@ -7,6 +7,7 @@ from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser, AwsConfig
 from kdnrm.exceptions import SaasException
 from botocore.exceptions import ClientError
+from plugin_dev.test_base import MockRecord
 from typing import Optional, Any, List
 
 
@@ -36,23 +37,15 @@ class AwsCognitoTest(unittest.TestCase):
             prior_password=prior_password
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'secret', 'label': 'User Pool ID', 'value': [field_values[0]]},
                 {'type': 'text', 'label': 'AWS Access Key ID', 'value': [field_values[1]]},
                 {'type': 'secret', 'label': 'AWS Secret Access Key', 'value': [field_values[2]]},
                 {'type': 'text', 'label': 'AWS Region', 'value': [field_values[3]]},
 
             ]
-        }
-        config_record.title = 'AWS Cognito Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = field_values
+        )
 
         return SaasPlugin(user=user, config_record=config_record, provider_config=provider_config)
 

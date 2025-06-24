@@ -4,8 +4,9 @@ from kdnrm.saas_type import ReturnCustomField, Secret, SaasConfigItem
 from kdnrm.exceptions import SaasException
 from typing import List, TYPE_CHECKING
 from kdnrm.log import Log
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 import requests
+import os
 
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
@@ -24,10 +25,11 @@ class SaasPlugin(SaasPluginBase):
         super().__init__(user, config_record, provider_config, force_fail)
         self.user = user
         self.config_record = config_record
-        self.cookie_token = "<cookie_token>"
-        self.cisco_api_url = "<cisco_api_url>"
+        self.cookie_token = None
+        self.cisco_api_url = None
 
-        self.temp_file = NamedTemporaryFile(suffix=".pem")
+        self.temp_dir = TemporaryDirectory()
+        self.temp_file = os.path.join(self.temp_dir.name, "certificate.pem")
     
     @classmethod
     def requirements(cls) -> List[str]:
@@ -46,6 +48,13 @@ class SaasPlugin(SaasPluginBase):
                 id="apic_password",
                 label="Admin Password",
                 desc="Password for the APIC Admin.",
+                type="secret",
+                required=True
+            ),
+            SaasConfigItem(
+                id="apic_private_key",
+                label="Certificate",
+                desc="The certificate from the Authentication SAML Management",
                 type="secret",
                 required=True
             ),
@@ -70,16 +79,15 @@ class SaasPlugin(SaasPluginBase):
         """
         Log.info("Changing password for Cisco APIC Plugin user")
 
-        cisco_admin_record = self.config_record.dict.get('fields', [])
+        private_key = self.get_config("apic_private_key")
+        print(">>>>>", private_key)
+        if "BEGIN CERTIFICATE" not in private_key:
+            raise Exception("The certificate is missing BEING CERTIFICATE. "
+                            "Does the Certificate field contain a certificate?")
 
-        Log.debug(f"Checking required fields in config record")
-        cisco_file_ref = next((field['value'][0] for field in cisco_admin_record if field['type'] == 'fileRef'),
-                              None)
-        if not cisco_file_ref:
-            raise SaasException("Missing 'file ref' field in config record.")
-
-        Log.debug(f"Downloading ssl-certificate.pem file")
-        self.config_record.download_file_by_title('ssl-certificate.pem',  self.temp_file.name)
+        with open(self.temp_file, "w") as fh:
+            fh.write(private_key)
+            fh.close()
 
         self.cisco_api_url = self.get_config("apic_url")
         self.fetch_cookie_token(
@@ -115,7 +123,7 @@ class SaasPlugin(SaasPluginBase):
                 }
             }
         }
-        response = requests.post(login_url, json=payload, verify=self.temp_file.name)
+        response = requests.post(login_url, json=payload, verify=self.temp_file)
         if response.status_code == 200:
             cookie = response.cookies.get('APIC-cookie')
             if not cookie:
@@ -145,7 +153,7 @@ class SaasPlugin(SaasPluginBase):
         headers = {
             'Cookie': f'APIC-Cookie={self.cookie_token}'
         }
-        response = requests.post(change_password_url, json=payload, headers=headers, verify=self.temp_file.name)
+        response = requests.post(change_password_url, json=payload, headers=headers, verify=self.temp_file)
         if response.status_code == 200:
             Log.info("Password changed successfully.")
         else:
@@ -170,7 +178,7 @@ class SaasPlugin(SaasPluginBase):
         headers = {
             'Cookie': f'APIC-Cookie={self.cookie_token}'
         }
-        response = requests.post(change_password_url, json=payload, headers=headers, verify=self.temp_file.name)
+        response = requests.post(change_password_url, json=payload, headers=headers, verify=self.temp_file)
         if response.status_code == 200:
             Log.info("Password rolled back successfully.")
         else:
