@@ -1,84 +1,109 @@
-# User Guide | Keeper Security / CISCO APIC 
+# User Guide | Keeper Security / CISCO APIC
 
 ## Overview
-This user guide covers the post-rotation script for the Keeper Security / CISCO APIC integration. Details on how to use the post-rotation script are available at the [_Keeper Security online documentation_](https://github.com/Keeper-Security/discovery-and-rotation-saas-dev) and will not be repeated here.
 
-## CISCO APIC
-The [Cisco Application Policy Infrastructure Controller (APIC)](https://www.cisco.com/c/en_in/products/cloud-systems-management/application-policy-infrastructure-controller-apic/index.html) is the central control point for Cisco's Application Centric Infrastructure (ACI) solution. It's a software-defined networking (SDN) controller that manages and enforces policies, provides visibility and control over network resources, and orchestrates network provisioning. 
+This user guide covers the post-rotation script for the Keeper Security / CISCO APIC integration. 
+Details on how to use the post-rotation script are available at the 
+  [_Keeper Security online documentation_](https://github.com/Keeper-Security/discovery-and-rotation-saas-dev) and 
+  will not be repeated here.
 
-## Pre-requisites
-In order to use the post-rotation script, you will need the following prerequisites:
+## CISCO API
+The [Cisco Application Policy Infrastructure Controller (APIC)](https://www.cisco.com/c/en_in/products/cloud-systems-management/application-policy-infrastructure-controller-apic/index.html) is the central control point for 
+  Cisco's Application Centric Infrastructure (ACI) solution. 
+It's a software-defined networking (SDN) controller that manages and enforces policies, provides visibility and 
+  control over network resources, and orchestrates network provisioning. 
 
-**1. Requests Library:** Ensure that the requests library is installed in your Python environment. This library is necessary for making HTTP requests to Cisco devices.
-
-**2. Requests library installation:** The Requests library allows you to send HTTP requests easily. Activate a Python virtual environment in your Keeper Gateway environment and install the library using the following command:
-
-    pip install requests
-
-## Steps to Test CISCO APIC 
-### 1. Login to Cisco Sandbox: 
-- Go to the [Cisco DevNet Sandbox](https://developer.cisco.com/)
-- Log in with your Cisco account credentials.
-
-    <img src="images/login_account.png" width="350" alt="login_account">
-
-- Select and launch the [sandbox](https://developer.cisco.com/site/sandbox/).
-
-    <img src="images/launch_sandbox.png" width="350" alt="launch_sandbox">
-
-### 2. Select and Launch the Device
-- Navigate to the sandbox catalog.
-- Select the appropriate sandbox for your Cisco device (e.g., Cisco APIC, etc.).
-- Launch the sandbox.
-
-### 4. Create User in Cisco APIC 
-- To change user's password admin need to create a user inside Cisco APIC.
-
-    <img src="images/create_user_1.png" width="350" alt="create_user_1">
-
-    <img src="images/create_user_2.png" width="350" alt="create_user_2">
-
-- Check the user's tab, the created user is present in the list. 
-
-    <img src="images/created_user.png" width="350" alt="created_user">
-
-### 4. Receive Details via Email or DevNet Environment
-
-After launching the sandbox, you will receive an email with the connection details or find them in the DevNet Environment under Quick Access.
-
-### 5. Store Developer Credentials
-
-At this point, you will see Developer Credentials— admin-username, and password. Extract the `ssl certificate` and save the certificate in a file name as `ssl-certificate.pem`. 
-
-<img src="images/ssl_certificate.png" width="350" alt="ssl_certificate">
+### Required Setup/Information
 
 
-## Steps to create Keeper security records and Cisco APIC
-### 1. Create and add details in New Rotation Record of type Login: 
-Store the values in a Keeper Security record of type `Login` named as `Cisco Authentication Record` and add an attachment `ssl-certificate.pem` extracted in step 4.
 
-<img src="images/login_record.png" width="350" alt="login_record">
 
-### 2. Create and add details in New Rotation Record of type PAM User:
-To rotate the user's password, you need to create a PAM user record and add the username in the login field. 
+## Commander
 
-<img src="images/pam_user.png" width="350" alt="pam_user">
+### Create SaaS Configuration Record
 
-## Executing the script for rotating password
-Once you have your pre-requisites ready, make sure you cover the following:
+In Commander, the `pam action saas config` command is used to create a SaaS Configuration record.
+This record currently is a **Login** record where the custom fields are used for settings.
 
-- Execute the following command in activated virtual environment.
+First check if the **AWS Cognito** plugin is available.
+Using the `pam action saas config` command with `--list` flag will show all plugins available to your Keeper Gateway.
 
-        plugin_test run -f <ciso_apic_python_script> -u <created_pam_user_record> -c <copied_uid_of_cisco_authentication_record>
-    
-    <img src="images/plugin_test_run.png" width="350" alt="plugin_test_run">
+```
+My Vault> pam action saas config -g <GATEWAY UID> --list
 
-- The above command rotate the cisco apic user's password.
+Available SaaS Plugins
+ * AWS Cognito (Catalog)
+ * Cisco APIC (Catalog)
+...
+ * REST (Builtin)
+ * Snowflake (Builtin)
+```
 
-    <img src="images/new-password-credentials.png" width="350" alt="new-password-credentials">
+If **AWS Cognito** is in the list, you can use this plugin.
 
-    <img src="images/password-change.png" width="350" alt="password-change">
+Before creating the SaaS Configuration Record, you can get a preview of fields you will be prompted for values.
+Next use `pam action saas config`, with `--info` flag and `-p "AWS Cognito"`, to get information about this plugin.
+```
+My Vault> pam action saas config -g <GATEWAY> -p "AWS Cognito" --info
 
-- Keeper Vault PAM User Record is updated.
+AWS Cognito
+  Type: catalog
+  Author: Keeper Security (pam@keepersecurity.com)
+  Summary: Change a users password in AWS Cognito.
+  Documents: https://github.com/Keeper-Security/discovery-and-rotation-saas-dev/blob/main/integrations/aws_cognito/README.md
 
-    <img src="images/rotated_password_success.png" width="350" alt="rotated_password_success">
+  Fields
+   * Required: User Pool ID - User Pool ID. 
+   * Optional: AWS Access Key ID - AWS Access Key ID. Required if not using a PAM AWS Configuration.
+   * Optional: AWS Secret Access Key - AWS Secret Access Key. Required if not using a PAM AWS Configuration.
+   * Optional: AWS Region - AWS Region. Required if not using a PAM AWS Configuration.
+```
+
+Next use `pam action saas config`, with `--create` flag and `-p "AWS Cognito"`, to create a SaaS Configuration Record.
+You will be prompted to enter values for the fields.
+Any optional fields that do not have a value will not be added to the record.
+
+```
+My Vault> pam action saas config -g <GATEWAY UID> -p "AWS Cognito" --create
+
+User Pool ID
+Description: User Pool ID.
+Field is required.
+Enter value > us-east-2_XXXXXXX
+
+AWS Access Key ID
+Description: AWS Access Key ID.
+Enter value > AWXXXXXXXXXXXXXXXX
+
+AWS Secret Access Key
+Description: AWS Secret Access Key.
+Enter value > SECRETKEY
+
+AWS Region
+Description: AWS Region.
+Enter value > us-east-2
+
+Title for the SaaS configuration record> AWS Cognito Config
+
+Created SaaS configuration record with UID of XXXXXXXXXXXXXX
+
+Assign this configuration to a user using the following command.
+  pam action saas add -c XXXXXXXXXXXXXX -u <PAM User Record UID>
+  See pam action saas add --help for more information.
+```
+
+Once you have a SaaS Configuration record, it can be assigned to a user using the `pam action saas add` command.
+
+```
+My Vault> pam action saas add -c XXXXXXXXXXXXXX -u YYYYYYYYYYYY
+
+Added AWS Cognito rotation to the user record.
+```
+
+Now when the user's password is rotated, the user's password in AWS Cognito will also be updated.
+
+## Keeper Vault
+
+Currently Keeper Vault does not support SaaS management.
+
+

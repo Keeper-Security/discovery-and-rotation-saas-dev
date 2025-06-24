@@ -15,6 +15,7 @@ class SaasConfigItem(BaseModel):
     id: str
     label: str
     desc: str
+    is_secret: bool = False
     type: Optional[str] = "text"
     code: Optional[str] = None
     desc_code: Optional[str] = None
