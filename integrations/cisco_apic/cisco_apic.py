@@ -44,7 +44,7 @@ class SaasPlugin(SaasPluginBase):
             SaasConfigItem(
                 id="apic_admin",
                 label="Admin Name",
-                desc="A user with administrative ",
+                desc="A user with an administrative role.",
                 required=True
             ),
             SaasConfigItem(
@@ -57,7 +57,7 @@ class SaasPlugin(SaasPluginBase):
             SaasConfigItem(
                 id="apic_url",
                 label="URL",
-                desc="URL",
+                desc="The URL to the APIC server.",
                 type="url",
                 required=True
             ),
@@ -68,7 +68,7 @@ class SaasPlugin(SaasPluginBase):
                      "'True' will validate certificates, "
                      "'False' will allow self-signed certificates.",
                 type="enum",
-                required=True,
+                required=False,
                 default_value="False",
                 enum_values=[
                     SaasConfigEnum(
