@@ -48,14 +48,15 @@ class SaasPlugin(SaasPluginBase):
                 id="apic_password",
                 label="Admin Password",
                 desc="Password for the APIC Admin.",
-                type="secret",
+                is_secret=True,
                 required=True
             ),
             SaasConfigItem(
                 id="apic_private_key",
                 label="Certificate",
-                desc="The certificate from the Authentication SAML Management",
-                type="secret",
+                desc="The certificate from the Admin -> Authentication -> SAML Management.",
+                type="multiline",
+                is_secret=True,
                 required=True
             ),
             SaasConfigItem(

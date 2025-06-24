@@ -31,20 +31,21 @@ class SaasPlugin(SaasPluginBase):
                 id="user_pool_id",
                 label="User Pool ID",
                 desc="User Pool ID.",
-                type="secret",
+                is_secret=True,
                 required=True
             ),
             SaasConfigItem(
                 id="aws_access_key_id",
                 label="AWS Access Key ID",
                 desc="AWS Access Key ID. Required if not using a PAM AWS Configuration.",
+                is_secret=True,
                 required=False
             ),
             SaasConfigItem(
                 id="aws_secret_access_key",
                 label="AWS Secret Access Key",
-                desc="AWS Secret Access Key.Required if not using a PAM AWS Configuration.",
-                type="secret",
+                desc="AWS Secret Access Key. Required if not using a PAM AWS Configuration.",
+                is_secret=True,
                 required=False
             ),
             SaasConfigItem(

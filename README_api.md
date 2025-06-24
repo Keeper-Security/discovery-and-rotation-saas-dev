@@ -336,10 +336,10 @@ def config_schema(cls) -> List[dict]:
             required=True
         ),
         SaasConfigItem(
-            id="my_plikgin_token",
+            id="my_plugin_token",
             label="Plugin Token",
             desc="The token",
-            type="password",
+            is_secret=True,
             required=True
         ),
     ]
@@ -356,6 +356,7 @@ class SaasConfigItem(BaseModel):
     id: str
     label: str
     desc: str
+    is_secret: bool = False
     type: Optional[str] = "text"
     default_value: Optional[Any] = None
     enum_values: List[SaasConfigEnum] = []
@@ -367,10 +368,11 @@ class SaasConfigItem(BaseModel):
 * `id` - The id for this field in the plugin. The value can be retrieved by self.get_conifg("<id>").
 * `label` - This is the custom field label.
 * `desc` - This is the default description.
+* `is_secret` - A boolean flag.  Used for password, tokens, private keys. In the Vault, the value will be hidden.
 * `type` - The data type for the field.
-  * `secret` - Used for password, tokens, private keys. In the Vault, the value will be hidden.
-  * `text` - Any value is accepted.
-  * `url` - The value must be an a URL format.
+  * `text` - Any value is accepted, but now allowed to have linefeed in the text.
+  * `multiline` - Any value is accepted and allowed to have linefeed in the text.
+  * `url` - The value must be a URL format.
   * `int` - The value must be an integer number value. This would be a number without any decimals, such as a port number.
   * `number` - The value must be a number value. This includes integer and float type numbers.
   * `bool` - Boolean type value. The value must have a “truthy” format. Valid values are TRUE, Yes, On, 1, False, NO, OFF, 0 are valid values. It is case insensitive.
