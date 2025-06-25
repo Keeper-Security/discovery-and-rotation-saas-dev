@@ -72,6 +72,11 @@ class SaasPlugin(SaasPluginBase):
         Log.debug("Checking required fields in config record")
         oracle_admin_record = self.config_record.dict.get("fields", [])
         identity_domain = self.get_config("identity_domain")
+        if not identity_domain:
+            raise SaasException(
+                "Missing 'identity_domain' field in config record. \
+                Please ensure the identity domain is provided."
+            )
         token_file_ref = next(
             (
                 field["value"][0]
@@ -80,13 +85,13 @@ class SaasPlugin(SaasPluginBase):
             ),
             None,
         )
-        Log.debug('Downloading "tokens.tok" file')
-        self.config_record.download_file_by_title("tokens.tok", self.temp_file.name)
         if not token_file_ref:
             raise SaasException(
                 "Missing 'fileRef' field in config record. \
                 Please ensure the token file is provided."
             )
+        Log.debug('Downloading "tokens.tok" file')
+        self.config_record.download_file_by_title("tokens.tok", self.temp_file.name)
         with open(self.temp_file.name, "r", encoding="utf-8") as file:
             access_token = file.read().strip()
         self._client = OracleClient(
