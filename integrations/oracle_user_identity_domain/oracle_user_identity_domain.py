@@ -121,8 +121,8 @@ class SaasPlugin(SaasPluginBase):
             old_password = self.user.prior_password.value[-1]
             self._client.update_user_password(ocid=self.__ocid, new_password=old_password)
         else:
-            Log.error("OCID is not set, make sure username is correct")
-            raise SaasException("OCID is not set, make sure username is correct")
+            Log.error("OCID is not set, cannot rollback password change")
+            raise SaasException("OCID is not set, cannot rollback password change")
 
 
 class OracleClient:
