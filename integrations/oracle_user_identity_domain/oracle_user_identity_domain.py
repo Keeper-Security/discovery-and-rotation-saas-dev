@@ -117,10 +117,12 @@ class SaasPlugin(SaasPluginBase):
         This method is called to revert the password change if needed.
         """
         Log.info("Rolling back password change for Oracle Identity Domain User Plugin")
-        if self.__ocid is None:
-            raise SaasException("OCID is not set. Cannot rollback password.")
-        old_password = self.user.prior_password.value[-1]
-        self._client.update_user_password(ocid=self.__ocid, new_password=old_password)
+        if self.__ocid is not None:
+            old_password = self.user.prior_password.value[-1]
+            self._client.update_user_password(ocid=self.__ocid, new_password=old_password)
+        else:
+            Log.error("OCID is not set, make sure username is correct")
+            raise SaasException("OCID is not set, make sure username is correct")
 
 
 class OracleClient:
@@ -129,6 +131,8 @@ class OracleClient:
     """
 
     BASE_URL_TEMPLATE = "https://{domain}/admin/v1/Users"
+    PATCH_OPERATION_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+    CONTENT_SCIM_JSON = "application/scim+json"
 
     def __init__(self, identity_domain: str, access_token: str):
         self.__access_token = access_token
@@ -140,12 +144,12 @@ class OracleClient:
     def __get_header(self):
         return {
             "Authorization": f"Bearer {self.__access_token}",
-            "Content-Type": "application/scim+json",
+            "Content-Type": self.CONTENT_SCIM_JSON,
         }
 
     def __get_payload_header(self, new_password):
         return {
-            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "schemas": [self.PATCH_OPERATION_SCHEMA],
             "Operations": [
                 {"op": "replace", "path": "password", "value": new_password}
             ],
@@ -167,36 +171,23 @@ class OracleClient:
         except requests.RequestException as e:
             raise SaasException(f"Failed to get user by username: {str(e)}") from e
         if response.status_code == 200:
-            resources = response.json()
-            return resources["Resources"][0].get("ocid")
-        elif response.status_code == 400:
-            msg = (
-                f"Bad request: Status:{response.status_code}, Message: {response.text}"
-            )
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
-        elif response.status_code == 401:
-            msg = (
-                f"Unauthorized: Status:{response.status_code}, Message: {response.text}"
-            )
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
-        elif response.status_code == 404:
-            msg = f"User not found: Status:{response.status_code}, Message: {response.text}"
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
-        elif response.status_code == 403:
-            msg = f"Forbidden: Status:{response.status_code}, Message: {response.text}"
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
-        elif response.status_code == 500:
-            msg = f"Internal server error: Status:{response.status_code}, Message: {response.text}"
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
+            resources = response.json().get("Resources")
+            if not resources:
+                raise SaasException(
+                    f"User {username} not found in Oracle Identity Domain"
+                )
+            return resources[0].get("id")
         else:
-            raise SaasException(
-                f"Unexpected error: {response.status_code} - {response.text}"
-            )
+            status_code_error_type_map = {
+                400: "Bad request",
+                401: "Unauthorized",
+                404: "User not found",
+                403: "Forbidden",
+                500: "Internal server error",
+            }
+            msg = f"{response.reason or status_code_error_type_map.get(response.status_code)}, Status Code:{response.status_code}, Message: {response.text}"
+            Log.error(msg=msg)
+            raise SaasException(msg=response.reason or response.status_code)
 
     def update_user_password(self, ocid: str, new_password: str):
         """
@@ -213,32 +204,15 @@ class OracleClient:
         except requests.RequestException as e:
             raise SaasException(f"Failed to update password: {str(e)}") from e
         if response.status_code == 200:
-            Log.info("Oracle Identity Domain User password changed successfully")
-        elif response.status_code == 401:
-            msg = (
-                f"Unauthorized: Status:{response.status_code}, Message: {response.text}"
-            )
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
-        elif response.status_code == 404:
-            msg = f"User not found: Status:{response.status_code}, Message: {response.text}"
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
-        elif response.status_code == 400:
-            msg = (
-                f"Bad request: Status:{response.status_code}, Message: {response.text}"
-            )
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
-        elif response.status_code == 403:
-            msg = f"Forbidden: Status:{response.status_code}, Message: {response.text}"
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
-        elif response.status_code == 500:
-            msg = f"Internal server error: Status:{response.status_code}, Message: {response.text}"
-            Log.error(msg=msg)
-            raise SaasException(msg=msg)
+            Log.info("Password updated successfully")
         else:
-            raise SaasException(
-                f"Unexpected error: {response.status_code} - {response.text}"
-            )
+            status_code_error_type_map = {
+                400: "Bad request",
+                401: "Unauthorized",
+                404: "User not found",
+                403: "Forbidden",
+                500: "Internal server error",
+            }
+            msg = f"{response.reason or status_code_error_type_map.get(response.status_code)}, Status Code:{response.status_code}, Message: {response.text}"
+            Log.error(msg=msg)
+            raise SaasException(msg=response.reason or response.status_code)

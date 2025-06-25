@@ -34,7 +34,7 @@ In order to use the post-rotation script, you will need the following prerequisi
 
 - Go to the **My Profile** tab and select the **Token and Keys** section and download the **Invokes identity domain APIs** from the bottom of the page.
 
-### 2, Create User in Oracle Identity Domain Cloud
+### 2. Create User in Oracle Identity Domain Cloud
 - To create a user, go to the **Domains** section, choose your domain, and then click on the **User Management** tab.
 
     <img src="images/users_tab_oracle.png" width="350" alt="users_tab_oracle">
@@ -91,7 +91,6 @@ Once you have your pre-requisites ready, make sure you cover the following:
 - The above command rotate the oracle identity domain user's password.
 
     <img src="images/rotated_keeper_pam_user.png" width="350" alt="rotated_keeper_pam_user">
-
 
 - Keeper Vault PAM User Record is updated.
 
