@@ -8,6 +8,7 @@ from kdnrm.log import Log
 
 try:
     import requests
+    from requests import Response
 except ImportError as exc:
     raise SaasException(
         'Missing required module: boto3. Please install it using "pip install requests"'
@@ -122,12 +123,12 @@ class SaasPlugin(SaasPluginBase):
         This method is called to revert the password change if needed.
         """
         Log.info("Rolling back password change for Oracle Identity Domain User Plugin")
-        if self.__ocid is not None:
+        if self.__ocid:
             old_password = self.user.prior_password.value[-1]
             self._client.update_user_password(ocid=self.__ocid, new_password=old_password)
-        else:
-            Log.error("OCID is not set, cannot rollback password change")
-            raise SaasException("OCID is not set, cannot rollback password change")
+            return
+        Log.error("OCID is not set, cannot rollback password change")
+        raise SaasException("OCID is not set, cannot rollback password change")
 
 
 class OracleClient:
@@ -183,16 +184,7 @@ class OracleClient:
                 )
             return resources[0].get("id")
         else:
-            status_code_error_type_map = {
-                400: "Bad request",
-                401: "Unauthorized",
-                404: "User not found",
-                403: "Forbidden",
-                500: "Internal server error",
-            }
-            msg = f"{response.reason or status_code_error_type_map.get(response.status_code)}, Status Code:{response.status_code}, Message: {response.text}"
-            Log.error(msg=msg)
-            raise SaasException(msg=response.reason or response.status_code)
+            self.error_response_code(response)
 
     def update_user_password(self, ocid: str, new_password: str):
         """
@@ -211,13 +203,21 @@ class OracleClient:
         if response.status_code == 200:
             Log.info("Password updated successfully")
         else:
-            status_code_error_type_map = {
-                400: "Bad request",
-                401: "Unauthorized",
-                404: "User not found",
-                403: "Forbidden",
-                500: "Internal server error",
-            }
-            msg = f"{response.reason or status_code_error_type_map.get(response.status_code)}, Status Code:{response.status_code}, Message: {response.text}"
-            Log.error(msg=msg)
-            raise SaasException(msg=response.reason or response.status_code)
+            self.error_response_code(response)
+    def error_response_code(self, response: Response):
+        """
+        Handle error response codes from the Oracle Identity Domain User Plugin API.
+        :param response: The response object from the API request.
+        :return: A SaasException with the appropriate error message.
+        """
+        status_code_error_type_map = {
+            400: "Bad request",
+            401: "Unauthorized",
+            404: "User not found",
+            403: "Forbidden",
+            500: "Internal server error",
+        }
+        msg = f"{response.reason or status_code_error_type_map.get(response.status_code)}, Status Code:{response.status_code}, Message: {response.text}"
+        Log.error(msg=msg)
+        raise SaasException(msg=response.reason or response.status_code)
+    
