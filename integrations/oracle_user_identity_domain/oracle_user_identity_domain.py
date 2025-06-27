@@ -19,8 +19,12 @@ if TYPE_CHECKING:
 
 
 class SaasPlugin(SaasPluginBase):
-    name = "Oracle Identity Domain User Plugin"
 
+    name = "Oracle Identity Domain User Plugin"
+    summary = "Change a user password in Oracle Identity Domain."
+    readme = "README.md"
+    author = "Keeper Security"
+    email = "pam@keepersecurity.com"
     def __init__(
         self,
         user: SaasUser,
