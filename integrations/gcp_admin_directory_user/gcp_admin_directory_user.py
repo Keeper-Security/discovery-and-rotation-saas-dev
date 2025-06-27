@@ -17,8 +17,13 @@ if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
 
 class SaasPlugin(SaasPluginBase):
+
     name = "GCP Admin Directory User Plugin"
-    summary = "Rotate and rollback passwords for users in GCP Admin Directory using a super admin and service account."
+    summary = "Change a user password in GCP Admin Directory."
+    readme = "README.md"
+    author = "Keeper Security"
+    email = "pam@keepersecurity.com"
+
     def __init__(
         self,
         user: SaasUser,
