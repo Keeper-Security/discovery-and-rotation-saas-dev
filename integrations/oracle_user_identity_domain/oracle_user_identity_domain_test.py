@@ -106,3 +106,14 @@ class OracleIdentityPluginTest(unittest.TestCase):
 
         with self.assertRaises(Exception):
             plugin.rollback_password()
+    
+    def test_get_ocid_by_username_user_not_found(self):
+        client = OracleClient(identity_domain="my.identity.oraclecloud.com", access_token="token")
+        with patch("oracle_user_identity_domain.requests.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"Resources": []}
+            mock_get.return_value = mock_response
+            with self.assertRaises(SaasException) as cm:
+                client.get_ocid_by_username("jdoe")
+            self.assertIn("not found", str(cm.exception))
