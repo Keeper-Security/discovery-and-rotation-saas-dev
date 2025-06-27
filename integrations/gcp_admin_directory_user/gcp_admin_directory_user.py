@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 class SaasPlugin(SaasPluginBase):
     name = "GCP Admin Directory User Plugin"
+    summary = "Rotate and rollback passwords for users in GCP Admin Directory using a super admin and service account."
     def __init__(
         self,
         user: SaasUser,
