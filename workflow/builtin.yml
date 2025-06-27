@@ -6,6 +6,7 @@ email: pam@keepersecurity.com
 summary: For Okta, rotate the password for a user.
 file: okta.py
 readme: null
+allows_remote_management: False
 fields:
 - id: okta_url
   label: Okta URL
@@ -28,6 +29,7 @@ summary: Generic REST implementation that calls your custom webservice to rotate
   user's password.
 file: rest.py
 readme: null
+allows_remote_management: False
 fields:
 - id: rest_url
   label: REST Url
@@ -58,6 +60,7 @@ email: pam@keepersecurity.com
 summary: For Cisco Meraki, rotate the password for a user.
 file: cisco_meraki.py
 readme: null
+allows_remote_management: False
 fields:
 - id: admin_email
   label: Admin Email
@@ -94,6 +97,7 @@ email: pam@keepersecurity.com
 summary: For an Azure Application, rotate the secret for a client.
 file: azure_client_secret.py
 readme: null
+allows_remote_management: False
 fields:
 - id: azure_target_object_id
   label: Azure Target Object ID
@@ -153,6 +157,7 @@ email: pam@keepersecurity.com
 summary: For Snowflake, rotate the password for a user.
 file: snowflake.py
 readme: null
+allows_remote_management: False
 fields:
 - id: snowflake_admin_user
   label: Snowflake Admin User
@@ -180,6 +185,7 @@ email: pam@keepersecurity.com
 summary: For Cisco IOS XE, rotate the password for a user.
 file: cisco_ios_xe.py
 readme: null
+allows_remote_management: False
 fields:
 - id: admin_user
   label: Admin Username
@@ -210,6 +216,7 @@ email: pam@keepersecurity.com
 summary: For an existing IAM User, rotate their access/secret keys.
 file: aws_access_key.py
 readme: null
+allows_remote_management: False
 fields:
 - id: aws_admin_key
   label: AWS Admin Access Key ID
