@@ -42,9 +42,11 @@ class SaasPlugin(SaasPluginBase):
                 required=True,
             ),
         ]
+
     @property
     def can_rollback(self) -> bool:
         return True
+
     def add_return_field(self, field: ReturnCustomField):
         """
         Add a custom return field to the plugin.
@@ -54,6 +56,7 @@ class SaasPlugin(SaasPluginBase):
         Log.info("Adding return field to GCP Admin Directory User Plugin")
         self.return_fields.append(field)
         Log.debug("Added return field")
+
     def change_password(self):
         """
         Change the password for the GCP Admin Directory User Plugin user.
@@ -105,6 +108,7 @@ class SaasPlugin(SaasPluginBase):
                 type="url"
             )
         )
+
     def rollback_password(self):
         """
         Rollback the password change for the GCP Admin Directory User Plugin user.
@@ -128,7 +132,7 @@ class GCPClient:
     def __init__(self, admin_email: str, service_account_json):
         self.__admin_email = admin_email
         self.__service_account_json = service_account_json
-    
+
     def update_user_password(self, user_email: str, new_password: str):
         """
         Change the password for a user by their user_email.
