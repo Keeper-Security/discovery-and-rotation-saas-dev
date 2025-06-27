@@ -72,6 +72,7 @@ class Package(WorkflowBase):
                 data["file_sig"] = sig
                 data["fields"] = info.schema
                 data["readme"] = None
+                data["allows_remote_management"] = False
                 if info.readme is not None:
                     url = "https://github.com/Keeper-Security" \
                           "/discovery-and-rotation-saas-dev/blob/main/integrations/" \
