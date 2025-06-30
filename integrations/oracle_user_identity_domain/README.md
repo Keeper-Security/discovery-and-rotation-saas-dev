@@ -44,6 +44,8 @@ In order to use the post-rotation script, you will need the following prerequisi
 
 > **Note:** After creating the user, ensure they log in successfully at least once. This step is required to prevent the system from prompting a password change on first login.
 
+- For more details [Reference for API Documentation](https://docs.oracle.com/en/cloud/paas/iam-domains-rest-api/op-admin-v1-users-id-patch.html)
+
 ## 3. Create a PAM User Record 
 - Create a record of type **PAM User** inside the Keeper Vault.
 - Enter the username copied from the previous step.
