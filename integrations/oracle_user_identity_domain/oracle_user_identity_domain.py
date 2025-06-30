@@ -11,7 +11,7 @@ try:
     from requests import Response
 except ImportError as exc:
     raise SaasException(
-        'Missing required module: boto3. Please install it using "pip install requests"'
+        'Missing required module: requests. Please install it using "pip install requests"'
     ) from exc
 if TYPE_CHECKING:
     from kdnrm.saas_type import SaasUser
