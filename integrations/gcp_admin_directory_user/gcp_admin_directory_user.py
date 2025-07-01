@@ -10,7 +10,7 @@ try:
     from googleapiclient.discovery import build
 except ImportError as exc:
     raise SaasException(
-        'Missing required modules: Please install it using "pip install -r requirements.txt"'
+        'Missing required modules: Please install it using "pip install -r requirements_test.txt"'
     ) from exc
 if TYPE_CHECKING:
     from kdnrm.saas_type import SaasUser
