@@ -58,7 +58,7 @@ class SaasPlugin(SaasPluginBase):
                 required=True,
             ),
             SaasConfigItem(
-                id="servicenow_url",
+                id="servicenow_instance_url",
                 label="ServiceNow Instance URL",
                 desc="Base URL of the ServiceNow instance (e.g. https://<instance>.service-now.com).",
                 type="url",
@@ -76,7 +76,7 @@ class SaasPlugin(SaasPluginBase):
 
         admin_username = self.get_config("admin_user")
         admin_password = self.get_config("admin_password")
-        instance_url = self.get_config("servicenow_url")
+        instance_url = self.get_config("servicenow_instance_url")
 
         if not all([admin_username, admin_password, instance_url]):
             raise SaasException(

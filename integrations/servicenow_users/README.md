@@ -18,6 +18,60 @@ In order to use the post-rotation script, you will need the following prerequisi
 
 ## Steps to Test ServiceNow 
 ### 1. Login to Service Now Developer Page:
-- Go to the [Service Now Developer](https://signon.service-now.com/x_snc_sso_auth.do?pageId=login) page. 
-- Log in with your ServiceNow credentials.
-- 
+- Visit the [ServiceNow Developer Portal](https://signon.service-now.com/x_snc_sso_auth.do?pageId=login).
+- Sign in using your ServiceNow credentials.
+- **Launch** your ServiceNow developer instance.
+- Typically, launching the dev instance logs you in automatically. If not, follow the steps below to log in manually.
+- Click the profile icon and select **Manage Instance Password**.
+- In the **Manage Instance Password** section, you’ll find your **instance UR**L, **admin username**, and **password**.
+- Use these credentials to log into your developer instance.
+
+### 2. Create a User in ServiceNow
+- Navigate to **All** > **System Security** > **Users and Groups**, then select the **Users** tab.
+- To create a new user, click **New** and fill in the required details.
+- Copy the username.
+- Click **Submit** to add the user.
+- To set a password for the new user, select the user and click **Set Password**.
+- If the user needs to reset their password after login, enable the **Password needs reset** option.
+
+## 3. Create a PAM User Record 
+- Create a record of type **PAM User** inside the Keeper Vault.
+- Enter the username copied from the previous step.
+- This will create a record of type **PAM User**. 
+
+### 4. Create a login record 
+Once you have your pre-requisites ready, make sure you cover the following:
+
+- Execute the following command in activated virtual environment.
+
+      plugin_test config -f <servicenow_user_python_script> -t "Service Now Instance Admin Details" -s <shared_uid>
+
+      Required: Admin Username
+      ServiceNow administrator username.
+      Enter Value : >
+
+      Required: Admin Password
+      Password for the ServiceNow administrator.
+      Enter Value : >
+
+      Required: ServiceNow Instance URL
+      Base URL of the ServiceNow instance (e.g. https://<instance>.service-now.com).
+      Enter Value : >
+
+      - Admin Username: Admin UserName of ServiceNow instance.
+      - Admin Password: Admin Password of ServiceNow instance
+      - ServiceNow Instance URL: Service Now Instance URL
+
+- This action will create a Record inside the Keeper Vault.
+- Copy the UUID generated upon successful execution of the command.
+
+## 5. Executing the script for rotating password
+Once you have your pre-requisites ready, make sure you cover the following:
+
+- Execute the following command in activated virtual environment.
+
+- The above command rotate the ServiceNow user's password.
+
+    <img src="images/rotated_keeper_pam_user.png" width="350" alt="rotated_keeper_pam_user">
+
+- Keeper Vault PAM User Record is updated.
