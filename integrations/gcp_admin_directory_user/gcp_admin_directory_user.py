@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
 
 LOGIN_URL = "https://console.cloud.google.com/"
+SERVICE_ACCOUNT_JSON_FILE = "service_account.json"
 
 class SaasPlugin(SaasPluginBase):
     name = "GCP Admin Directory User Plugin"
@@ -98,9 +99,9 @@ class SaasPlugin(SaasPluginBase):
                 "Missing 'fileRef' field in config record. \
                 Please ensure the token file is provided."
             )
-        Log.debug('Downloading "service_account.json" file')
+        Log.debug(f'Downloading "{SERVICE_ACCOUNT_JSON_FILE}" file')
         self.config_record.download_file_by_title(
-            "service_account.json", self.temp_file.name
+            SERVICE_ACCOUNT_JSON_FILE, self.temp_file.name
         )
         try:
             self._client = GCPClient(admin_email=admin_email, service_account_json=self.temp_file.name)
