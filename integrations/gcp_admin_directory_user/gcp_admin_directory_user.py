@@ -16,14 +16,14 @@ if TYPE_CHECKING:
     from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
 
-class SaasPlugin(SaasPluginBase):
+LOGIN_URL = "https://console.cloud.google.com/"
 
+class SaasPlugin(SaasPluginBase):
     name = "GCP Admin Directory User Plugin"
     summary = "Change a user password in GCP Admin Directory."
     readme = "README.md"
     author = "Keeper Security"
     email = "pam@keepersecurity.com"
-
     def __init__(
         self,
         user: SaasUser,
@@ -35,24 +35,31 @@ class SaasPlugin(SaasPluginBase):
         self.user = user
         self.config_record = config_record
         self.temp_file = NamedTemporaryFile(suffix=".json")
+        self._can_rollback = False
+        self._client = None
+        self.return_fields = []
+
     @classmethod
     def requirements(cls) -> List[str]:
         return ["requests"]
+
     @classmethod
     def config_schema(cls) -> List[SaasConfigItem]:
         return [
             SaasConfigItem(
                 id="admin_email",
-                label="Super Admin Email",
-                desc='Super Admin Email for the GCP Admin Directory User Plugin',
+                label="Admin Email",
+                desc='Email address of the administrator with User Management permissions',
                 required=True,
             ),
         ]
 
     @property
     def can_rollback(self) -> bool:
-        return True
-
+        return self._can_rollback
+    @can_rollback.setter
+    def can_rollback(self, value: bool):
+        self._can_rollback = value
     def add_return_field(self, field: ReturnCustomField):
         """
         Add a custom return field to the plugin.
@@ -78,7 +85,7 @@ class SaasPlugin(SaasPluginBase):
                 "Missing 'admin_email' field in config record. \
                 Please ensure the admin email is provided."
             )
-        token_fie_ref = next(
+        token_file_repo = next(
             (
                 field["value"][0]
                 for field in gcp_admin_record
@@ -86,7 +93,7 @@ class SaasPlugin(SaasPluginBase):
             ),
             None,
         )
-        if not token_fie_ref:
+        if not token_file_repo:
             raise SaasException(
                 "Missing 'fileRef' field in config record. \
                 Please ensure the token file is provided."
@@ -95,7 +102,14 @@ class SaasPlugin(SaasPluginBase):
         self.config_record.download_file_by_title(
             "service_account.json", self.temp_file.name
         )
-        self._client =  GCPClient(admin_email=admin_email, service_account_json=self.temp_file.name)
+        try:
+            self._client = GCPClient(admin_email=admin_email, service_account_json=self.temp_file.name)
+            self.can_rollback = True
+        except SaasException as e:
+            self._client = None
+            self.can_rollback = False
+            Log.error(f"Failed to initialize GCP client: {str(e)}")
+            raise SaasException(f"Failed to initialize GCP client: {str(e)}") from e
         user_email = self.user.username.value
         new_password = self.user.new_password.value # type: ignore
         if not user_email or not new_password:
@@ -109,7 +123,7 @@ class SaasPlugin(SaasPluginBase):
         )
         self.add_return_field(
             ReturnCustomField(
-                value=Secret("https://console.cloud.google.com/"),
+                value=Secret(LOGIN_URL),
                 label="Login URL",
                 type="url"
             )
@@ -123,8 +137,13 @@ class SaasPlugin(SaasPluginBase):
         Log.info("Rolling back password change for GCP Admin Directory User Plugin")
         try:
             if self._client:
+                user_email = self.user.username.value
+                if not user_email:
+                    raise SaasException(
+                        "Missing 'username'field in user."
+                    )
                 self._client.update_user_password(
-                    user_email=self.user.username.value,
+                    user_email=user_email,
                     new_password= self.user.prior_password.value[-1], # type: ignore
                 )
             else:
@@ -141,7 +160,6 @@ class GCPClient:
     def __init__(self, admin_email: str, service_account_json):
         self.__admin_email = admin_email
         self.__service_account_json = service_account_json
-
     def update_user_password(self, user_email: str, new_password: str):
         """
         Change the password for a user by their user_email.

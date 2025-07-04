@@ -72,11 +72,11 @@ In order to use the post-rotation script, you will need the following prerequisi
 
       plugin_test config -f <gcp_admin_directory_python_script> -s <shared_folder_uid> -t "GCP Admin Details"
 
-      Required: Super Admin Email
-      Super Admin Email for the GCP Admin Directory User Plugin
+      Required: Admin Email
+      Email address of the administrator with User Management permissions
       Enter Value : > 
 
-      - Super Admin Email: Super Admin Email ID (Root User Email ID)
+      - Admin Email: Admin Email ID (Admin Email ID with User Management Admin Permission)
 
     <img src="images/plugin_config.png" width="350" alt="plugin_config">
 - Please provide the requested details, and this will create a login record in the shared folder.
