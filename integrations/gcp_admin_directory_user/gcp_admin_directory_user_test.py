@@ -96,18 +96,18 @@ class GCPAdminDirectoryUserTest(unittest.TestCase):
 
     def test_rollback_password_success(self):
         """Test that the rollback_password method correctly rolls back the password."""
-        plugin = self.plugin(prior_password=Secret("OldPassword456"))
+        plugin = self.plugin(prior_password=Secret(("OldPassword456", "OldPassword123")))
         with patch.object(GCPClient, "update_user_password") as mock_update_pw:
             plugin._client = GCPClient("admin@company.com", "service_account.json")
             plugin.rollback_password()
             mock_update_pw.assert_called_once_with(
                 user_email="jdoe@company.com",
-                new_password="6"  # last char of "OldPassword456"
+                new_password="OldPassword123"
             )
 
     def test_rollback_password_http_error(self):
         """Test that an exception is raised if the rollback_password fails."""
-        plugin = self.plugin(prior_password=Secret("OldPassword456"))
+        plugin = self.plugin(prior_password=Secret(("OldPassword456", "OldPassword123")))
         with patch.object(GCPClient, "update_user_password", side_effect=SaasException("Failed to update password: 403")):
             plugin._client = GCPClient("admin@company.com", "service_account.json")
             with self.assertRaises(SaasException) as ctx:

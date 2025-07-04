@@ -32,10 +32,6 @@ In order to use the post-rotation script, you will need the following prerequisi
 
     <img src="images/create_service_account_tab.png" width="350" alt="create_service_account_tab">
 
-- Inside **Permissions** section, assign the **Editor** and **Viewer** role to the service account.
-
-    <img src="images/add_permission.png" width="350" alt="add_permission">
-
 - User may add **Principals with access** accordingly. 
 - Click on **Continue** and select **Done** at the bottom of the page.
 - Service Account with all permission is created.
@@ -43,12 +39,31 @@ In order to use the post-rotation script, you will need the following prerequisi
 ### 3. Authorize Domain-Wide Delegation: 
 - The service account created above requires approval for Domain-Wide Delegation of Authority.
 - To authorize this, use an admin email account to grant the necessary permissions.
+- [Perform Google Workspace domain-wide delegation of authority](https://developers.google.com/workspace/cloud-search/docs/guides/delegation)
+- Add the below **OAuth Scopes** for authorize wide delegation authority. 
+          https://www.googleapis.com/auth/admin.directory.user
 
 ### 4. Generate service account json file:
 - Go to the **Service Accounts** section and select the service account you created.
 -  Navigate to the **Keys** section and **Create a new key** with the **JSON** format.
 
     <img src="images/add_key.png" width="350" alt="add_key">
+
+### 5. Enable Admin SDK:
+- Go to the **API & Services** section in the Google Cloud Console.
+
+    <img src="images/enable_sdk.png" width="350" alt="enable_sdk">
+
+- Click on **Enabled APIs & Services**.
+- Click the **+ ENABLE APIS AND SERVICES** button at the top.
+- In the search bar, type **Admin SDK API**.
+
+    <img src="images/enable_sdk_2.png" width="350" alt="enable_sdk_2">
+
+- Select it from the results and click **Enable**.
+
+    <img src="images/enable_sdk_1.png" width="350" alt="enable_sdk_1">
+
 
 ## Steps to create Keeper security records
 ### 1. Execute the script and create config in keeper security:
@@ -80,7 +95,7 @@ Executing the above command will generate a UID. Copy this UID as it will be use
 
 > **Note:** The service account json file should be name as **service_account.json**
 
-### 4. Create and add details in New Rotation Record of type PAM User:
+### 4. Create and add details in New Record of type PAM User:
 To rotate the user's password, you need to create a PAM user record and add the email in the login field.
 
 <img src="images/pam_user_create.png" width="350" alt="pam_user_create">
