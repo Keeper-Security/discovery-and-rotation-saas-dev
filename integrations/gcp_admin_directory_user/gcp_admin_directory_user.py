@@ -122,10 +122,13 @@ class SaasPlugin(SaasPluginBase):
         """
         Log.info("Rolling back password change for GCP Admin Directory User Plugin")
         try:
-            self._client.update_user_password(
-                user_email=self.user.username.value,
-                new_password= self.user.prior_password.value[-1], # type: ignore
-            )
+            if self._client:
+                self._client.update_user_password(
+                    user_email=self.user.username.value,
+                    new_password= self.user.prior_password.value[-1], # type: ignore
+                )
+            else:
+                raise SaasException("Client not initialized")
         except SaasException as e:
             Log.error(f"Failed to rollback password change: {str(e)}")
             raise SaasException(f"Failed to rollback password change: {str(e)}") from e
