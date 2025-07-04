@@ -71,7 +71,7 @@ class SaasPlugin(SaasPluginBase):
         """
         Log.info("Changing password for GCP Admin Directory User Plugin")
         Log.debug("Checking required fields in config record")
-        gcp_admin_record = self.config_record.dict.get("fields", [])
+        gcp_admin_record = self.config_record.dict.get("fields", []) # type: ignore
         admin_email = self.get_config("admin_email")
         if not admin_email:
             raise SaasException(
@@ -97,7 +97,7 @@ class SaasPlugin(SaasPluginBase):
         )
         self._client =  GCPClient(admin_email=admin_email, service_account_json=self.temp_file.name)
         user_email = self.user.username.value
-        new_password = self.user.new_password.value
+        new_password = self.user.new_password.value # type: ignore
         if not user_email or not new_password:
             raise SaasException(
                 "Missing 'username' or 'new_password' field in user. \
@@ -124,7 +124,7 @@ class SaasPlugin(SaasPluginBase):
         try:
             self._client.update_user_password(
                 user_email=self.user.username.value,
-                new_password= self.user.prior_password.value[-1],
+                new_password= self.user.prior_password.value[-1], # type: ignore
             )
         except SaasException as e:
             Log.error(f"Failed to rollback password change: {str(e)}")

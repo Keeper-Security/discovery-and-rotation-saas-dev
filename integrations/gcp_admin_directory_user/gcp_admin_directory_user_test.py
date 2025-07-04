@@ -6,7 +6,6 @@ from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser
 from kdnrm.exceptions import SaasException
-from requests import Response
 
 class GCPAdminDirectoryUserTest(unittest.TestCase):
 
@@ -16,7 +15,7 @@ class GCPAdminDirectoryUserTest(unittest.TestCase):
         Log.set_log_level("DEBUG")
 
     @staticmethod
-    def plugin(prior_password: Secret = None):
+    def plugin(prior_password: Secret = None): # type: ignore
         user = SaasUser(
             username=Secret("jdoe@company.com"),
             new_password=Secret("NewPassword123"),
@@ -70,7 +69,7 @@ class GCPAdminDirectoryUserTest(unittest.TestCase):
     def test_missing_file_ref(self):
         """Test that an exception is raised if the fileRef field is missing."""
         plugin = self.plugin()
-        plugin.config_record.dict['fields'] = []
+        plugin.config_record.dict['fields'] = [] # type: ignore
         with self.assertRaises(SaasException) as ctx:
             plugin.change_password()
         self.assertIn("Missing 'fileRef' field", str(ctx.exception))
