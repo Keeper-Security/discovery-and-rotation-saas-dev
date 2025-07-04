@@ -1,98 +1,160 @@
-# User Guide | Keeper Security / Oracle Identity-Domain Cloud 
+# User Guide | Keeper Security / Oracle Identity Domain User
 
 ## Overview
-This user guide covers the post-rotation script for the Keeper Security / Oracle Identity-Domain integration. Details on how to use the post-rotation script are available at the [_Keeper Security online documentation_](https://github.com/Keeper-Security/discovery-and-rotation-saas-dev) and will not be repeated here.
 
-## OCID
-Oracle Identity Domains are a core component of Oracle Cloud Infrastructure (OCI) Identity and Access Management (IAM), serving as a container for managing users, roles, and security settings within a specific cloud environment.
+This user guide covers the SaaS plugin for the Keeper Security / Oracle Domain Identity User integration. 
 
-## Pre-requisites
-In order to use the post-rotation script, you will need the following prerequisites:
+## Oracle Domain Identity User
+[Oracle Domain Identity User](https://docs.oracle.com/en-us/iaas/Content/identity-domains/identity-domains.htm) are
+  the IAM users of Oracle's Domain Identity.
 
-**1. Requests Library:** Ensure that the requests library is installed in your Python environment. This library is necessary for making HTTP requests to update user's password in oracle identity domain.
+### Required Setup/Information
 
-**2. Requests library installation:** The Requests library allows you to send HTTP requests easily. Activate a Python virtual environment in your Keeper Gateway environment and install the library using the following command:
+The SaaS configuration requires values from your Oracle Domain Identity account.
+In your OCI account, select the Identity Domain you wish to use with this plugin.
 
-    pip install requests
+#### Domain Details
 
-## Steps to Test Oracle Identity Domain Cloud Password Rotation
-### 1. Setup in Oracle Identity Domain Cloud
-- Go to the [Oracle Cloud](https://www.oracle.com/cloud/sign-in.html?redirect_uri=https%3A%2F%2Fcloud.oracle.com%2F)
-- Enter the Cloud Account Name
+Select the **Details** tab, if not selected.
+On the **Detail** page only the value for **Domain URL** is needed.
 
-    <img src="images/oracle_cloud_name.png" width="350" alt="oracle_cloud_name">
+![is_domain_detail.png](images/is_domain_detail.png)
 
-- Choose the appropriate Identity Domain
+* **Domain URL** - The **Domain URL** on the detail page is the **Domain URL** field in the SaaS Configuration.
 
-    <img src="images/select_domain.png" width="350" alt="select_domain">
+#### API keys
 
-- Login with the Oracle Credentials.
-- Click on the profile icon, then select **Identity Domain: name_of_selected_domain** from the menu.
-- Navigate to the **Administrator** tab and assign the **User Administrator** role to the selected user.
+To get the API keys information, select the **User management** tab.
+And in the **Users** section, select the user you wish to be used for to administrate the users.
+This user should have permissions to change other user's passwords.
+Click on the **API keys** tab.
+You can either create a new API key or use an existing if you have the private key PEM.
 
-    <img src="images/user_administrator.png" width="350" alt="user_administrator">
+If an API key does not currently exist, click on the **Add API key** button.
+The next step is to click the **Download private key** button.
+This will create a private key PEM file and download it to your machine.
+After the private key PEM file has downloaded, the **Add** button on the bottom of the page will be enabled.
+Click the **Add** button and it will display the **Configuration file preview**.
 
-- Go to the **My Profile** tab and select the **Token and Keys** section and download the **Invokes identity domain APIs** from the bottom of the page.
+If using an existing API key, click the three dots, on the right side of the screen, for the key and click **View Configuration file**.
 
-### 2. Create User in Oracle Identity Domain Cloud
-- To create a user, go to the **Domains** section, choose your domain, and then click on the **User Management** tab.
+![api_view.png](images/api_view.png)
 
-    <img src="images/users_tab_oracle.png" width="350" alt="users_tab_oracle">
+* **user** - `user` in the preview is the **Admin OCID** field. 
+  It should start with `ocid#.user.oc#..`
+* **fingerprint** - `fingerprint` in the preview is the **Public Key Fingerprint** field. 
+  It should be pattern like `xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx`.
+* **tenancy** - `tenancy` in the preview is the **Tenancy OCID** field. 
+  It should start with `ocid#.tenancy.oc#..`
+* **region** - `region` in the preview is the **Home Region** field. 
 
-- Click the **Create** button and enter the required user details.
-- Copy the username — it will be needed later when adding the user as a PAM (Privileged Access Management) record.
+The SaaS configuration field is **Private Key Content**. 
+This is the content of private key PEM file was downloaded when creating the new API key. 
+Copy the content of the file and paste it into the **Private Key Content** field.
 
-> **Note:** After creating the user, ensure they log in successfully at least once. This step is required to prevent the system from prompting a password change on first login.
+## Commander
 
-- For more details [Reference for API Documentation](https://docs.oracle.com/en/cloud/paas/iam-domains-rest-api/op-admin-v1-users-id-patch.html)
+### Create SaaS Configuration Record
 
-## 3. Create a PAM User Record 
-- Create a record of type **PAM User** inside the Keeper Vault.
-- Enter the username copied from the previous step.
-- This will create a record of type **PAM User**. 
+In Commander, the `pam action saas config` command is used to create a SaaS Configuration record.
+This record currently is a **Login** record where the custom fields are used for settings.
 
-    <img src="images/create_pam_user.png" width="350" alt="create_pam_user">
+First check if the **Oracle Identity Domain User** plugin is available.
+Using the `pam action saas config` command with `--list` flag will show all plugins available to your Keeper Gateway.
 
-### 4. Create a login record and add token attachment
-Once you have your pre-requisites ready, make sure you cover the following:
+```
+My Vault> pam action saas config -g <GATEWAY UID> --list
 
-- Execute the following command in activated virtual environment.
+Available SaaS Plugins
+ * Custom One (Custom) - Plugin has no description.
+ * Oracle Identity Domain User (Catalog) - Change a user password in Oracle Identity Domain.
+ ...
+ * Snowflake (Builtin) - For Snowflake, rotate the password for a user.
+```
 
-      plugin_test config -f <oracle_user_python_script> -t "Oracle Token Credential" -s <shared_uid>
+If **Oracle Identity Domain User** is in the list, you can use this plugin.
 
-      Required: Identity Domain
-      Identity Domain for the Oracle Identity Domain User Plugin ended with ".identity.oraclecloud.com"
-      Enter Value : >
+Before creating the SaaS Configuration Record, you can get a preview of fields you will be prompted for values.
+Next use `pam action saas config`, with `--info` flag and `-p "Oracle Identity Domain User"`, to get information about this plugin.
+```
+My Vault> pam action saas config -g <GATEWAY> -p "Oracle Identity Domain User" --info
+
+Oracle Identity Domain User
+  Type: catalog
+  Author: Keeper Security (pam@keepersecurity.com)
+  Summary: Change a user password in Oracle Identity Domain.
+  Documents: https://github.com/Keeper-Security/discovery-and-rotation-saas-dev/blob/main/integrations/oracle_user_identity_domain/README.md
+
+  Fields
+   * Required: Domain URL - Domain URL. Found in Identity & Security -> Domains -> Domain.
+   * Required: Admin OCID - The "user" part of the OCI config. Starts with "ocid1.user..."
+   * Required: Public Key Fingerprint - The "fingerprint" part of the OCI config. Looks like "XX:XX:XX....."
+   * Required: Private Key Content - The content of the Private Key PEM file.
+   * Required: Tenancy OCID - The "tenancy" part of the OCI config. Looks like "ocid1.tenancy...".
+   * Required: Home Region - The "region" part of the OCI config. Looks like "us-sanjose-1"
+```
+
+Next use `pam action saas config`, with `--create` flag and `-p "Oracle Identity Domain User"`, to create a SaaS Configuration Record.
+You will be prompted to enter values for the fields.
+For the **Private Key Content** field, enter the path to the private key PEM file.
+If you cut-and-paste the key, the new lines will break the following field inputs.
 
 
-      - Identity Domain: Enter the Identity domain. 
-      - The identity domain can be found in the **details** section of the Domain page.
+```
+My Vault> pam action saas config -g <GATEWAY UID> -p "Oracle Identity Domain User" --create
 
-    <img src="images/plugin_config.png" width="350" alt="plugin_config">
+Domain URL
+Description: Domain URL. Found in Identity & Security -> Domains -> Domain.
+Field is required.
+Enter value > https://idcs-XXXXXX.identity.oraclecloud.com:443
 
-- This action will create a SaaS-type record inside the Keeper Vault.
+Admin OCID
+Description: The "user" part of the OCI config. Starts with "ocid1.user..."
+Field is required.
+Enter value > ocid1.user.oc1..XXXXXX
 
-    <img src="images/created_admin_keeper_record.png" width="350" alt="created_admin_keeper_record">
+Public Key Fingerprint
+Description: The "fingerprint" part of the OCI config. Looks like "XX:XX:XX....."
+Field is required.
+Enter value > xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx
 
-- Upload the downloaded access token as an attachment to the newly created user record.
+Private Key Content
+Description: The content of the Private Key PEM file..
+Field is required.
+Enter a file path to load value from file.
+Enter value > /path/to/admin@exmaple.com-2025-07-04T21_34_28.765Z.pem
 
-    <img src="images/add_attachments.png" width="350" alt="add_attachments">
+Tenancy OCID
+Description: The "tenancy" part of the OCI config. Looks like "ocid1.tenancy..."
+Field is required.
+Enter value > ocid1.tenancy.oc1..XXXXXX
 
-- Copy the UUID generated upon successful execution of the command.
-> **Note:** Ensure the attachment is named exactly as `tokens.tok`.
+Home Region
+Description: The "region" part of the OCI config. Looks like "us-sanjose-1"
+Field is required.
+Enter value > us-ashburn-1
 
-## 5. Executing the script for rotating password
-Once you have your pre-requisites ready, make sure you cover the following:
+Title for the SaaS configuration record> Oracle Identity Domain User Config
 
-- Execute the following command in activated virtual environment.
+Created SaaS configuration record with UID of XXXXXXXXXXXXXX
 
-      plugin_test run -f <oracle_user_python_script> -u <uid_created_pam_user_record> -c <copied_uid_of_oracle_token_credential_authentication_record>
+Assign this configuration to a user using the following command.
+  pam action saas add -c XXXXXXXXXXXXXX -u <PAM User Record UID>
+  See pam action saas add --help for more information.
+```
 
-    <img src="images/plugin_test_run.png" width="350" alt="plugin_test_run">
+Once you have a SaaS Configuration record, it can be assigned to a user using the `pam action saas add` command.
 
-- The above command rotate the oracle identity domain user's password.
+```
+My Vault> pam action saas add -c XXXXXXXXXXXXXX -u YYYYYYYYYYYY
 
-    <img src="images/rotated_keeper_pam_user.png" width="350" alt="rotated_keeper_pam_user">
+Added Oracle Identity Domain User to the user record.
+```
 
-- Keeper Vault PAM User Record is updated.
+Now when the user's password is rotated, the user's password in Oracle Identity Domain User will also be updated.
+
+## Keeper Vault
+
+Currently Keeper Vault does not support SaaS management.
+
 
