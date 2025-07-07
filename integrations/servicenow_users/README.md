@@ -19,25 +19,48 @@ In order to use the post-rotation script, you will need the following prerequisi
 ## Steps to Test ServiceNow 
 ### 1. Login to Service Now Developer Page:
 - Visit the [ServiceNow Developer Portal](https://signon.service-now.com/x_snc_sso_auth.do?pageId=login).
+
+    <img src="images/sign_up.png" width="350" alt="sign_up">
+    
 - Sign in using your ServiceNow credentials.
-- **Launch** your ServiceNow developer instance.
+- **Start Building** your ServiceNow developer instance.
+
+    <img src="images/start_building.png" width="350" alt="start_building">
+
 - Typically, launching the dev instance logs you in automatically. If not, follow the steps below to log in manually.
 - Click the profile icon and select **Manage Instance Password**.
+
+    <img src="images/manage_instance_1.png" width="350" alt="manage_instance_1">
+
 - In the **Manage Instance Password** section, you’ll find your **instance UR**L, **admin username**, and **password**.
+
+    <img src="images/manage_instance_password.png" width="350" alt="manage_instance_password">
+
 - Use these credentials to log into your developer instance.
 
 ### 2. Create a User in ServiceNow
 - Navigate to **All** > **System Security** > **Users and Groups**, then select the **Users** tab.
+
+    <img src="images/users.png" width="350" alt="users">
+
 - To create a new user, click **New** and fill in the required details.
+
+    <img src="images/new_user.png" width="350" alt="new_user">
+
 - Copy the username.
 - Click **Submit** to add the user.
+
+    <img src="images/create_user.png" width="350" alt="create_user">
+
 - To set a password for the new user, select the user and click **Set Password**.
 - If the user needs to reset their password after login, enable the **Password needs reset** option.
 
 ## 3. Create a PAM User Record 
 - Create a record of type **PAM User** inside the Keeper Vault.
 - Enter the username copied from the previous step.
-- This will create a record of type **PAM User**. 
+- This will create a record of type **PAM User**.
+
+<img src="images/pam_user.png" width="350" alt="pam_user">
 
 ### 4. Create a login record 
 Once you have your pre-requisites ready, make sure you cover the following:
@@ -62,8 +85,14 @@ Once you have your pre-requisites ready, make sure you cover the following:
       - Admin Password: Admin Password of ServiceNow instance
       - ServiceNow Instance URL: Service Now Instance URL
 
-- This action will create a Record inside the Keeper Vault.
 - Copy the UUID generated upon successful execution of the command.
+
+    <img src="images/plugin_config.png" width="350" alt="plugin_config">
+
+- This action will create a Record inside the Keeper Vault.
+
+    <img src="images/service_now_instance.png" width="350" alt="service_now_instance">
+
 
 ## 5. Executing the script for rotating password
 Once you have your pre-requisites ready, make sure you cover the following:
@@ -72,6 +101,8 @@ Once you have your pre-requisites ready, make sure you cover the following:
 
 - The above command rotate the ServiceNow user's password.
 
-    <img src="images/rotated_keeper_pam_user.png" width="350" alt="rotated_keeper_pam_user">
+    <img src="images/plugin_run.png" width="350" alt="plugin_run">
 
 - Keeper Vault PAM User Record is updated.
+
+    <img src="images/success_rotated.png" width="350" alt="success_rotated">

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from re import L
 from typing import List, TYPE_CHECKING, Optional
 import base64
 import json
@@ -17,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class SaasPlugin(SaasPluginBase):
 
-    name = "ServiceNow"
+    name = "ServiceNow User Plugin"
     summary = "Change user password in ServiceNow."
     readme = "README.md"
     author = "Keeper Security"
@@ -35,6 +36,7 @@ class SaasPlugin(SaasPluginBase):
         self.config_record = config_record
         self._user_sys_id = None
         self._client = None
+        self._can_rollback = False
 
     @classmethod
     def requirements(cls) -> List[str]:
@@ -54,7 +56,7 @@ class SaasPlugin(SaasPluginBase):
                 label="Admin Password",
                 desc="Password for the ServiceNow administrator.",
                 type="secret",
-                is_secret=True,
+                is_secret=True, # type: ignore
                 required=True,
             ),
             SaasConfigItem(
@@ -68,7 +70,11 @@ class SaasPlugin(SaasPluginBase):
 
     @property
     def can_rollback(self) -> bool:
-        return True
+        return self._can_rollback
+
+    @can_rollback.setter
+    def can_rollback(self, value: bool):
+        self._can_rollback = value
 
     def _initialize_client(self) -> ServiceNowClient:
         """Initialize ServiceNow client with config credentials."""
@@ -103,8 +109,12 @@ class SaasPlugin(SaasPluginBase):
 
         try:
             self._client = self._initialize_client()
-            self._user_sys_id = self._get_user_sys_id(self._client)
+            if not self._client:
+                raise SaasException("Could not initialize ServiceNow client.")
+
             new_password = self.user.new_password.value  # type: ignore
+            self._user_sys_id = self._get_user_sys_id(self._client)
+            self.can_rollback = True
 
             self._client.change_user_password(self._user_sys_id, new_password)
             self._add_return_fields()
@@ -127,7 +137,7 @@ class SaasPlugin(SaasPluginBase):
                 )
             )
 
-        instance_url = self.get_config("servicenow_url")
+        instance_url = self.get_config("servicenow_instance_url")
         if instance_url:
             self.add_return_field(
                 ReturnCustomField(
@@ -194,6 +204,7 @@ class ServiceNowClient:
 
     def _build_user_table_url(self, endpoint_path: str = "") -> str:
         """Build URL for user table API endpoint."""
+        Log.debug(f"instance_url: {self._instance_url}")
         base_url = f"{self._instance_url}{self.USER_TABLE_ENDPOINT}"
         return f"{base_url}{endpoint_path}" if endpoint_path else base_url
 
@@ -258,14 +269,9 @@ class ServiceNowClient:
     def get_sys_id_for_user(self) -> str:
         """Get the ServiceNow sys_id for the given username."""
         Log.info("Fetching sys_id for user in ServiceNow")
-
         username = self._user.username.value
         url = self._build_user_table_url(f"?user_name={username}")
-
-        Log.debug(f"ServiceNow API URL: {url}")
-
         response = self._make_request("GET", url)
-
         if response.status_code == 200:
             data = response.json().get("result", [])
             if not data:
@@ -281,15 +287,12 @@ class ServiceNowClient:
     def change_user_password(self, sys_id: str, new_password: str) -> None:
         """Change the password for the user identified by sys_id."""
         Log.info(f"Changing password for user with sys_id: {sys_id}")
-
         url = self._build_user_table_url(f"/{sys_id}?sysparm_input_display_value=true")
         payload = {
             "user_password": new_password,
             "password_needs_reset": "false"
         }
-
         response = self._make_request("PATCH", url, **{"json": payload})
-
         if response.status_code == 200:
             Log.info("Password changed successfully.")
         else:
