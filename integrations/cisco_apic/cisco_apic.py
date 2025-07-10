@@ -1,15 +1,20 @@
 from __future__ import annotations
 from kdnrm.saas_plugins import SaasPluginBase
-from kdnrm.saas_type import ReturnCustomField, Secret, SaasConfigItem
+from kdnrm.saas_type import Secret, SaasConfigItem, SaasConfigEnum
 from kdnrm.exceptions import SaasException
 from typing import List, TYPE_CHECKING
 from kdnrm.log import Log
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 import requests
+import json
+import os
 
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
+
+import urllib3
+urllib3.disable_warnings()
 
 
 class SaasPlugin(SaasPluginBase):
@@ -24,10 +29,10 @@ class SaasPlugin(SaasPluginBase):
         super().__init__(user, config_record, provider_config, force_fail)
         self.user = user
         self.config_record = config_record
-        self.cookie_token = "<cookie_token>"
-        self.cisco_api_url = "<cisco_api_url>"
+        self.cookie_token = None
 
-        self.temp_file = NamedTemporaryFile(suffix=".pem")
+        self.temp_dir = TemporaryDirectory()
+        self.temp_file = os.path.join(self.temp_dir.name, "certificate.pem")
     
     @classmethod
     def requirements(cls) -> List[str]:
@@ -39,28 +44,170 @@ class SaasPlugin(SaasPluginBase):
             SaasConfigItem(
                 id="apic_admin",
                 label="Admin Name",
-                desc="A user with administrative ",
+                desc="A user with an administrative role.",
                 required=True
             ),
             SaasConfigItem(
                 id="apic_password",
                 label="Admin Password",
                 desc="Password for the APIC Admin.",
-                type="secret",
+                is_secret=True,
                 required=True
             ),
             SaasConfigItem(
                 id="apic_url",
                 label="URL",
-                desc="URL",
+                desc="The URL to the APIC server.",
                 type="url",
                 required=True
+            ),
+            SaasConfigItem(
+                id="verify_ssl",
+                label="Verify SSL",
+                desc="Verify that the SSL certificate is valid: "
+                     "'True' will validate certificates, "
+                     "'False' will allow self-signed certificates.",
+                type="enum",
+                required=False,
+                default_value="False",
+                enum_values=[
+                    SaasConfigEnum(
+                        value="False",
+                        desc="Do not validate the SSL certificate. This will allow self-signed certificates."
+                    ),
+                    SaasConfigEnum(
+                        value="True",
+                        desc="Validate the SSL certificate. Self-signed certificates are not allowed."
+                    ),
+                ]
             )
         ]
-    
+
+    @staticmethod
+    def _raise_cisco_exception(error_data: bytes):
+        error_data = json.loads(error_data)
+        Log.error(error_data)
+
+        if "imdata" in error_data:
+            errors = []
+            for item in error_data.get("imdata", []):
+                error = item.get("error")
+                if error is not None:
+                    attributes = error.get("attributes")
+                    if attributes is not None:
+                        text = attributes.get("text")
+                        if text is not None:
+                            errors.append(text)
+            if len(errors) > 0:
+                raise SaasException(". ".join(errors) + ".")
+
     @property
     def can_rollback(self) -> bool:
-        return True
+        change_password_url = f"{self.get_config('apic_url')}/api/mo/uni/userext/pwdprofile.json"
+        headers = {
+            'Cookie': f'APIC-Cookie={self.cookie_token}'
+        }
+        response = requests.get(change_password_url, headers=headers, verify=self.verify_ssl)
+        if response.status_code == 200:
+            password_policy = json.loads(response.content)
+            for item in password_policy.get("imdata", []):
+                profile = item.get("aaaPwdProfile")
+                if profile is not None:
+                    attributes = profile.get("attributes")
+                    if attributes is not None:
+                        history_count = attributes.get("historyCount")
+                        Log.debug(f"history count is {history_count}")
+                        try:
+                            history_count = int(history_count)
+                            if history_count == 0:
+                                Log.debug("able to rollback since history count is 0")
+                                return True
+                        except (Exception,):
+                            pass
+        try:
+            self._raise_cisco_exception(response.content)
+        except Exception as err:
+            Log.error(f"Failed to get password policy: {err}")
+            return False
+
+        Log.error(f"Failed to get password policy: {response.status_code} - {response.text}")
+        return False
+
+    @property
+    def verify_ssl(self):
+        if self.get_config("verify_ssl") == "True":
+            return True
+        return False
+
+    def fetch_cookie_token(self):
+
+        if self.cookie_token is None:
+            login_url = f"{self.get_config('apic_url')}/api/aaaLogin.json"
+            payload = {
+                "aaaUser": {
+                    "attributes": {
+                        "name": self.get_config("apic_admin"),
+                        "pwd": self.get_config("apic_password")
+                    }
+                }
+            }
+
+            response = requests.post(login_url, json=payload, verify=self.verify_ssl)
+            if response.status_code == 200:
+                cookie = response.cookies.get('APIC-cookie')
+                if not cookie:
+                    Log.error("Failed to extract cookie token from response.")
+                    raise SaasException("Failed to extract cookie token")
+                Log.debug("able to log into Cisco APIC and get a cookie")
+                self.cookie_token = cookie
+            else:
+                self._raise_cisco_exception(response.content)
+
+                Log.error(f"Failed to extract cookie token: StatusCode {response.status_code} - "
+                          f"Message: {response.text}")
+                raise SaasException("Failed to extract cookie token")
+
+    def change_user_password(self, new_password: Secret):
+        """
+        Change the password for the specified user.
+        """
+
+        username_plaintext = self.user.username.value
+
+        Log.info(f"Changing password for user {username_plaintext}")
+
+        change_password_url = f"{self.get_config('apic_url')}/api/node/mo/uni/userext/user-{username_plaintext}.json"
+        payload = {
+            "aaaUser": {
+                "attributes": {
+                    "name": username_plaintext,
+                    "pwd": new_password.value
+                }
+            }
+        }
+        headers = {
+            'Cookie': f'APIC-Cookie={self.cookie_token}'
+        }
+        response = requests.post(change_password_url, json=payload, headers=headers, verify=self.verify_ssl)
+        if response.status_code == 200:
+            Log.info("Password changed successfully.")
+        else:
+            error_data = json.loads(response.content)
+            if "imdata" in error_data:
+                errors = []
+                for item in error_data.get("imdata", []):
+                    error = item.get("error")
+                    if error is not None:
+                        attributes = error.get("attributes")
+                        if attributes is not None:
+                            text = attributes.get("text")
+                            if text is not None:
+                                errors.append(text)
+                if len(errors) > 0:
+                    raise SaasException(". ".join(errors) + ".")
+
+            Log.error(f"Failed to change password with status code: {response.status_code} - {response.text}")
+            raise SaasException("Failed to change password.")
 
     def change_password(self):
         """
@@ -70,87 +217,10 @@ class SaasPlugin(SaasPluginBase):
         """
         Log.info("Changing password for Cisco APIC Plugin user")
 
-        cisco_admin_record = self.config_record.dict.get('fields', [])
+        self.fetch_cookie_token()
+        self.change_user_password(self.user.new_password)
 
-        Log.debug(f"Checking required fields in config record")
-        cisco_file_ref = next((field['value'][0] for field in cisco_admin_record if field['type'] == 'fileRef'),
-                              None)
-        if not cisco_file_ref:
-            raise SaasException("Missing 'file ref' field in config record.")
-
-        Log.debug(f"Downloading ssl-certificate.pem file")
-        self.config_record.download_file_by_title('ssl-certificate.pem',  self.temp_file.name)
-
-        self.cisco_api_url = self.get_config("apic_url")
-        self.fetch_cookie_token(
-            login=self.get_config("apic_admin"),
-            password=self.get_config("apic_password"),
-        )
-        username = self.user.username.value
-        new_password = self.user.new_password.value
-        self.change_user_password(username, new_password)
-
-        Log.debug(f"Password changed successfully for user {username}")
-
-        self.add_return_field(
-            ReturnCustomField(
-                label="apic_url",
-                type="url",
-                value=Secret(self.cisco_api_url)
-            )
-        )
-
-    def fetch_cookie_token(self, login: str, password: str):
-        """
-        Extract the cookie token for the Cisco APIC Plugin user.
-        """
-        Log.info("Extracting cookie token for Cisco APIC Plugin user")
-
-        login_url = f"{self.cisco_api_url}/api/aaaLogin.json"
-        payload = {
-            "aaaUser": {
-                "attributes": {
-                    "name": login,
-                    "pwd": password
-                }
-            }
-        }
-        response = requests.post(login_url, json=payload, verify=self.temp_file.name)
-        if response.status_code == 200:
-            cookie = response.cookies.get('APIC-cookie')
-            if not cookie:
-                Log.error("Failed to extract cookie token from response.")
-                raise SaasException("Failed to extract cookie token")
-            self.cookie_token = cookie
-        else:
-            Log.error(f"Failed to extract cookie token: StatusCode {response.status_code} - "
-                      f"Message: {response.text}")
-            raise SaasException("Failed to extract cookie token")
-    
-    def change_user_password(self, username: str, new_password: str):
-        """
-        Change the password for the specified user.
-        """
-        Log.info(f"Changing password for user {username}")
-
-        change_password_url = f"{self.cisco_api_url}/api/node/mo/uni/userext/user-{username}.json"
-        payload = {
-            "aaaUser": {
-                "attributes": {
-                    "name": username,
-                    "pwd": new_password
-                }
-            }
-        }
-        headers = {
-            'Cookie': f'APIC-Cookie={self.cookie_token}'
-        }
-        response = requests.post(change_password_url, json=payload, headers=headers, verify=self.temp_file.name)
-        if response.status_code == 200:
-            Log.info("Password changed successfully.")
-        else:
-            Log.error(f"Failed to change password with status code: {response.status_code} - {response.text}")
-            raise SaasException("Failed to change password.")
+        Log.debug(f"Password changed successfully for user {self.user.username.value}")
 
     def rollback_password(self):
 
@@ -158,30 +228,4 @@ class SaasPlugin(SaasPluginBase):
             raise SaasException(f"There is no current password. Cannot rotate back to prior password.")
 
         Log.debug("Rolling back password for Cisco APIC Plugin  user")
-        change_password_url = f"{self.cisco_api_url}/api/node/mo/uni/userext/user-{self.user}.json"
-        payload = {
-            "aaaUser": {
-                "attributes": {
-                    "name": self.user.username.value,
-                    "pwd": self.user.prior_password.value
-                }
-            }
-        }
-        headers = {
-            'Cookie': f'APIC-Cookie={self.cookie_token}'
-        }
-        response = requests.post(change_password_url, json=payload, headers=headers, verify=self.temp_file.name)
-        if response.status_code == 200:
-            Log.info("Password rolled back successfully.")
-        else:
-            Log.error(f"Failed to roll back password: {response.text}")
-            raise SaasException("Failed to roll back password.")
-
-        Log.debug(f"Adding return field")
-        self.add_return_field(
-            ReturnCustomField(
-                label="APIC Website",
-                type="url",
-                value=Secret(self.cisco_api_url)
-            )
-        )
+        self.change_user_password(self.user.prior_password)

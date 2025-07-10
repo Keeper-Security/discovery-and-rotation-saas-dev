@@ -1,6 +1,7 @@
 from __future__ import annotations
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+from plugin_dev.test_base import MockRecord
 from .cisco_apic import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
@@ -8,6 +9,7 @@ from kdnrm.saas_type import SaasUser
 from kdnrm.exceptions import SaasException
 from requests import Response
 from requests.cookies import RequestsCookieJar
+import json
 from typing import Optional
 
 
@@ -27,30 +29,57 @@ class CiscoApicTest(unittest.TestCase):
             prior_password=prior_password
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
                 {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
                 {'type': 'url', 'label': 'URL', 'value': ['https://apic.localhost']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            "PASSWORD",
-            "https://apic.localhost"
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         return SaasPlugin(user=user, config_record=config_record)
+
+    @staticmethod
+    def _password_policy_content(history_count: int = 5) -> bytes:
+
+        return json.dumps({
+            "imdata": [
+                {
+                    "aaaPwdProfile": {
+                        "attributes": {
+                            "historyCount": history_count
+                        }
+                    }
+                }
+            ]
+        }).encode()
+
+    #   error_data = json.loads(response.content)
+    #             if "imdata" in error_data:
+    #                 errors = []
+    #                 for item in error_data.get("imdata", []):
+    #                     error = item.get("error")
+    #                     if error is not None:
+    #                         attributes = error.get("attributes")
+    #                         if attributes is not None:
+    #                             text = attributes.get("text")
+    #                             if text is not None:
+    #                                 errors.append(text)
+
+    @staticmethod
+    def _error_content(msg: str = "IM A ERROR") -> bytes:
+
+        return json.dumps({
+            "imdata": [
+                {
+                    "error": {
+                        "attributes": {
+                            "text": msg
+                        }
+                    }
+                }
+            ]
+        }).encode()
 
     def test_requirements(self):
         """
@@ -70,31 +99,98 @@ class CiscoApicTest(unittest.TestCase):
 
         plugin = self.plugin()
 
-        with patch("requests.post") as mock_post:
+        with patch("requests.get") as mock_get:
+
             cookie_jar = RequestsCookieJar()
             cookie_jar.set('APIC-cookie', 'APIC TOKEN', domain='example.com', path='/')
 
             # Mock the token fetch response
-            mock_token_res = Response()
-            mock_token_res.status_code = 200
-            mock_token_res.cookies = cookie_jar
+            mock_get_res = Response()
+            mock_get_res.status_code = 200
+            mock_get_res.cookies = cookie_jar
+            mock_get_res._content = self._password_policy_content()
 
-            # Mock the password change response
-            mock_change_res = Response()
-            mock_change_res.status_code = 200
-            mock_change_res.cookies = cookie_jar
+            mock_get.side_effect = [mock_get_res]
 
-            mock_post.side_effect = [
-                mock_token_res,
-                mock_change_res
-            ]
+            with patch("requests.post") as mock_post:
 
-            # Do the rotation
-            plugin.change_password()
+                # Mock the token fetch response
+                mock_token_res = Response()
+                mock_token_res.status_code = 200
+                mock_token_res.cookies = cookie_jar
 
-            self.assertEqual("APIC TOKEN", plugin.cookie_token)
+                # Mock the password change response
+                mock_change_res = Response()
+                mock_change_res.status_code = 200
+                mock_change_res.cookies = cookie_jar
 
-            self.assertTrue(plugin.can_rollback)
+                mock_post.side_effect = [
+                    mock_token_res,
+                    mock_change_res
+                ]
+
+                # Do the rotation
+                plugin.change_password()
+
+                self.assertEqual("APIC TOKEN", plugin.cookie_token)
+
+                self.assertFalse(plugin.can_rollback)
+
+    def test_rollback_is_allowed(self):
+
+        plugin = self.plugin()
+
+        with patch("requests.get") as mock_get:
+            cookie_jar = RequestsCookieJar()
+            cookie_jar.set('APIC-cookie', 'APIC TOKEN', domain='example.com', path='/')
+
+            # Mock the token fetch response
+            mock_get_res = Response()
+            mock_get_res.status_code = 200
+            mock_get_res.cookies = cookie_jar
+            mock_get_res._content = self._password_policy_content(0)
+
+            mock_get.side_effect = [mock_get_res]
+
+            with patch("requests.post") as mock_post:
+                # Mock the token fetch response
+                mock_token_res = Response()
+                mock_token_res.status_code = 200
+                mock_token_res.cookies = cookie_jar
+
+                mock_post.side_effect = [
+                    mock_token_res,
+                ]
+
+                self.assertTrue(plugin.can_rollback)
+
+    def test_rollback_is_not_allowed(self):
+
+        plugin = self.plugin()
+
+        with patch("requests.get") as mock_get:
+            cookie_jar = RequestsCookieJar()
+            cookie_jar.set('APIC-cookie', 'APIC TOKEN', domain='example.com', path='/')
+
+            # Mock the token fetch response
+            mock_get_res = Response()
+            mock_get_res.status_code = 200
+            mock_get_res.cookies = cookie_jar
+            mock_get_res._content = self._password_policy_content(5)
+
+            mock_get.side_effect = [mock_get_res]
+
+            with patch("requests.post") as mock_post:
+                # Mock the token fetch response
+                mock_token_res = Response()
+                mock_token_res.status_code = 200
+                mock_token_res.cookies = cookie_jar
+
+                mock_post.side_effect = [
+                    mock_token_res,
+                ]
+
+                self.assertFalse(plugin.can_rollback)
 
     def test_missing_custom_field_admin_name(self):
         """
@@ -106,29 +202,12 @@ class CiscoApicTest(unittest.TestCase):
             new_password=Secret("NewPassword123")
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
                 {'type': 'url', 'label': 'URL', 'value': ['https://apic.localhost']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            # Missing for `label`, `code` and `id`
-            # Need three Nones to mock a missing field
-            None,
-            "PASSWORD",
-            "https://apic.localhost"
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         try:
             SaasPlugin(user=user, config_record=config_record)
@@ -149,27 +228,12 @@ class CiscoApicTest(unittest.TestCase):
             new_password=Secret("NewPassword123")
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
                 {'type': 'url', 'label': 'URL', 'value': ['https://apic.localhost']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            None,
-            "https://apic.localhost"
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         try:
             SaasPlugin(user=user, config_record=config_record)
@@ -190,28 +254,12 @@ class CiscoApicTest(unittest.TestCase):
             new_password=Secret("NewPassword123")
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
                 {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
-
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            "PASSWORD",
-            None
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         try:
             SaasPlugin(user=user, config_record=config_record)
@@ -232,28 +280,13 @@ class CiscoApicTest(unittest.TestCase):
             new_password=Secret("NewPassword123")
         )
 
-        config_record = MagicMock()
-        config_record.dict = {
-            'fields': [
-                {"type": "fileRef", "value": ["FILE_UID"]}
-            ],
-            'custom': [
+        config_record = MockRecord(
+            custom=[
                 {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
                 {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
-                {'type': 'url', 'label': 'URL', 'value': ['bad_url']},
+                {'type': 'url', 'label': 'URL', 'value': ['ftp://apic.localhost']},
             ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            "PASSWORD",
-            "bad_url"
-        ]
-        config_record.download_file_by_title.return_value = "PEM_DATA"
+        )
 
         try:
             SaasPlugin(user=user, config_record=config_record)
@@ -261,49 +294,6 @@ class CiscoApicTest(unittest.TestCase):
         except SaasException as err:
             if "does not appears to be a URL" not in str(err):
                 self.fail("did not message containing 'does not appears to be a URL'")
-        except Exception as err:
-            self.fail(f"got wrong exception: {err}")
-
-    def test_missing_file_ref(self):
-        """
-        Missing the "fileRef" field.
-
-        All records have "fileRef" so this is almost impossible, but Commander
-        might allow you to do this.
-        """
-
-        user = SaasUser(
-            username=Secret("jdoe"),
-            new_password=Secret("NewPassword123")
-        )
-
-        config_record = MagicMock()
-        config_record.dict = {
-            'custom': [
-                {'type': 'text', 'label': 'Admin Name', 'value': ['ADMIN']},
-                {'type': 'secret', 'label': 'Admin Password', 'value': ['PASSWORD']},
-                {'type': 'url', 'label': 'URL', 'value': ['https://apic.localhost']},
-            ]
-        }
-        config_record.title = 'APIC Config'
-        config_record.type = 'login'
-        config_record.uid = 'fakeUid'
-
-        # The param checker does not like MagicMock.
-        config_record.get_custom_field_value.side_effect = [
-            "ADMIN",
-            "PASSWORD",
-            "https://apic.localhost"
-        ]
-        config_record.download_file_by_title.return_value = None
-
-        try:
-            plugin = SaasPlugin(user=user, config_record=config_record)
-            plugin.change_password()
-            raise Exception("should have failed")
-        except SaasException as err:
-            if "Missing 'file ref'" not in str(err):
-                self.fail("did not message containing 'Missing 'file ref''")
         except Exception as err:
             self.fail(f"got wrong exception: {err}")
 
@@ -322,6 +312,7 @@ class CiscoApicTest(unittest.TestCase):
             mock_token_res = Response()
             mock_token_res.status_code = 500
             mock_token_res.cookies = cookie_jar
+            mock_token_res._content = self._error_content("TOKEN ERROR")
 
             mock_post.side_effect = [
                 mock_token_res,
@@ -331,10 +322,7 @@ class CiscoApicTest(unittest.TestCase):
                 plugin.change_password()
                 raise Exception("should have failed")
             except SaasException as err:
-                if "Failed to extract cookie token" not in str(err):
-                    self.fail("did not message containing 'Failed to extract cookie token'")
-            except Exception as err:
-                self.fail(f"got wrong exception: {err}")
+                self.assertIn("TOKEN ERR", str(err))
 
     def test_change_password_token_no_cookie(self):
         """
@@ -371,33 +359,42 @@ class CiscoApicTest(unittest.TestCase):
 
         plugin = self.plugin()
 
-        with patch("requests.post") as mock_post:
+        with patch("requests.get") as mock_get:
+
             cookie_jar = RequestsCookieJar()
             cookie_jar.set('APIC-cookie', 'APIC TOKEN', domain='example.com', path='/')
 
             # Mock the token fetch response
-            mock_token_res = Response()
-            mock_token_res.status_code = 200
-            mock_token_res.cookies = cookie_jar
+            mock_get_res = Response()
+            mock_get_res.status_code = 200
+            mock_get_res.cookies = cookie_jar
+            mock_get_res._content = self._password_policy_content()
 
-            # Mock the password change response
-            mock_change_res = Response()
-            mock_change_res.status_code = 500
-            mock_change_res.cookies = cookie_jar
+            mock_get.side_effect = [mock_get_res]
 
-            mock_post.side_effect = [
-                mock_token_res,
-                mock_change_res
-            ]
+            with patch("requests.post") as mock_post:
 
-            try:
-                plugin.change_password()
-                raise Exception("should have failed")
-            except SaasException as err:
-                if "Failed to change password" not in str(err):
-                    self.fail("did not message containing 'Failed to change password'")
-            except Exception as err:
-                self.fail(f"got wrong exception: {err}")
+                # Mock the token fetch response
+                mock_token_res = Response()
+                mock_token_res.status_code = 200
+                mock_token_res.cookies = cookie_jar
+
+                # Mock the password change response
+                mock_change_res = Response()
+                mock_change_res.status_code = 500
+                mock_change_res.cookies = cookie_jar
+                mock_change_res._content = self._error_content("IM A ERROR")
+
+                mock_post.side_effect = [
+                    mock_token_res,
+                    mock_change_res
+                ]
+
+                try:
+                    plugin.change_password()
+                    raise Exception("should have failed")
+                except SaasException as err:
+                    self.assertIn("IM A ERROR", str(err))
 
     def test_rollback_password_success(self):
         """
@@ -453,26 +450,33 @@ class CiscoApicTest(unittest.TestCase):
 
         plugin = self.plugin(prior_password=Secret("OldPassword456"))
 
-        with patch("requests.post") as mock_post:
+        with patch("requests.get") as mock_get:
+
             cookie_jar = RequestsCookieJar()
             cookie_jar.set('APIC-cookie', 'APIC TOKEN', domain='example.com', path='/')
 
-            # Mock the password change response
-            mock_change_res = Response()
-            mock_change_res.status_code = 500
-            mock_change_res.cookies = cookie_jar
+            # Mock the token fetch response
+            mock_get_res = Response()
+            mock_get_res.status_code = 200
+            mock_get_res.cookies = cookie_jar
+            mock_get_res._content = self._password_policy_content()
 
-            mock_post.side_effect = [
-                mock_change_res
-            ]
+            mock_get.side_effect = [mock_get_res]
 
-            try:
-                plugin.rollback_password()
-                raise Exception("should have failed")
-            except SaasException as err:
-                if "Failed to roll back password" not in str(err):
-                    self.fail("did not message containing 'Failed to roll back password'")
-            except Exception as err:
-                self.fail(f"got wrong exception: {err}")
+            with patch("requests.post") as mock_post:
 
+                # Mock the password change response
+                mock_change_res = Response()
+                mock_change_res.status_code = 500
+                mock_change_res.cookies = cookie_jar
+                mock_change_res._content = self._error_content("TOKEN ERROR")
 
+                mock_post.side_effect = [
+                    mock_change_res
+                ]
+
+                try:
+                    plugin.rollback_password()
+                    raise Exception("should have failed")
+                except SaasException as err:
+                    self.assertIn("TOKEN ERROR", str(err))

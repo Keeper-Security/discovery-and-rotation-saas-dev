@@ -6,7 +6,8 @@ email: pam@keepersecurity.com
 summary: For Okta, rotate the password for a user.
 file: okta.py
 readme: null
-schema:
+allows_remote_management: False
+fields:
 - id: okta_url
   label: Okta URL
   desc: Base URL to Okta Account.
@@ -28,7 +29,8 @@ summary: Generic REST implementation that calls your custom webservice to rotate
   user's password.
 file: rest.py
 readme: null
-schema:
+allows_remote_management: False
+fields:
 - id: rest_url
   label: REST Url
   desc: URL endpoint.
@@ -47,6 +49,9 @@ schema:
   code: gateway_kdnrm_saas_rest_method
   type: enum
   required: false
+  enum_values:
+  - value: POST
+  - value: PUT
 ---
 name: Cisco Meraki
 type: builtin
@@ -55,7 +60,8 @@ email: pam@keepersecurity.com
 summary: For Cisco Meraki, rotate the password for a user.
 file: cisco_meraki.py
 readme: null
-schema:
+allows_remote_management: False
+fields:
 - id: admin_email
   label: Admin Email
   desc: The admin email address.
@@ -91,7 +97,8 @@ email: pam@keepersecurity.com
 summary: For an Azure Application, rotate the secret for a client.
 file: azure_client_secret.py
 readme: null
-schema:
+allows_remote_management: False
+fields:
 - id: azure_target_object_id
   label: Azure Target Object ID
   desc: The Object ID of the Application. This is not the Application (client) ID.
@@ -139,6 +146,9 @@ schema:
   type: enum
   required: true
   default_value: All
+  enum_values:
+  - value: All
+  - value: Replace
 ---
 name: Snowflake
 type: builtin
@@ -147,7 +157,8 @@ email: pam@keepersecurity.com
 summary: For Snowflake, rotate the password for a user.
 file: snowflake.py
 readme: null
-schema:
+allows_remote_management: False
+fields:
 - id: snowflake_admin_user
   label: Snowflake Admin User
   desc: Administrator's username
@@ -174,7 +185,8 @@ email: pam@keepersecurity.com
 summary: For Cisco IOS XE, rotate the password for a user.
 file: cisco_ios_xe.py
 readme: null
-schema:
+allows_remote_management: False
+fields:
 - id: admin_user
   label: Admin Username
   desc: The admin username.
@@ -204,7 +216,8 @@ email: pam@keepersecurity.com
 summary: For an existing IAM User, rotate their access/secret keys.
 file: aws_access_key.py
 readme: null
-schema:
+allows_remote_management: False
+fields:
 - id: aws_admin_key
   label: AWS Admin Access Key ID
   desc: An administrator's AWS Access Key ID. Not needed if using an AWS PAM Configuration
@@ -232,3 +245,7 @@ schema:
   type: enum
   required: true
   default_value: All
+  enum_values:
+  - value: All
+  - value: Oldest
+  - value: Replace

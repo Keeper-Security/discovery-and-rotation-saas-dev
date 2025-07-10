@@ -34,22 +34,35 @@ def load_module_from_path(module_name, file_path):
 def _get_field_value(item: SaasConfigItem) -> dict:
 
     req = f"{Fore.RED}Required:{Style.RESET_ALL}"
-    if item.required is False:
+    if not item.required:
         req = f"{Fore.BLUE}Optional:{Style.RESET_ALL}"
 
     print(f"{req} {item.label}")
     print(f"{item.desc}")
+    if item.type == "multiline":
+        print("Enter path to read from local file.")
     default = ""
     if item.default_value is not None:
         default = f" (default: {item.default_value})"
     value = input(f"Enter Value {default}: > ")
+
+    if os.path.exists(value):
+        with open(value, "r") as fh:
+            value = fh.read()
+
+    field_type = item.type
+    if field_type in ["url", "int", "number", "bool", "enum"]:
+        field_type = "text"
+
     field_args = {
-        "type": item.type,
+        "type": field_type,
         "label": item.label,
         "value": []
     }
     if value is not None:
         field_args["value"] = [value]
+    if item.is_secret:
+        field_args["privacyScreen"] = True
 
     print("")
 
@@ -80,11 +93,11 @@ def config_command(file, shared_folder_uid, title, config):
     ]
 
     for item in schema:  # type: SaasConfigItem
-        if item.required is True:
+        if item.required:
             fields.append(_get_field_value(item))
 
     for item in schema:  # type: SaasConfigItem
-        if item.required is False:
+        if not item.required:
             fields.append(_get_field_value(item))
 
     if config is None:
@@ -277,12 +290,12 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                         Log.debug(f"custom field '{field['label']}' does not exist in user record, adding custom field")
                         user_record.dict["custom"].append(field)
 
-                Log.debug("updating the user record.")
-                user_record.set_standard_field_value("password", new_password)
-                getattr(user_record, "_update")()
-                sm.save(user_record)
+            Log.debug("updating the user record.")
+            user_record.set_standard_field_value("password", new_password)
+            getattr(user_record, "_update")()
+            sm.save(user_record)
 
-                print(f"{Fore.GREEN}Rotation was successful{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Rotation was successful{Style.RESET_ALL}")
 
         except Exception as err:
             Log.traceback(err)

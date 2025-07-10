@@ -1,84 +1,104 @@
-# User Guide | Keeper Security / CISCO APIC 
+# User Guide | Keeper Security / CISCO APIC
 
 ## Overview
-This user guide covers the post-rotation script for the Keeper Security / CISCO APIC integration. Details on how to use the post-rotation script are available at the [_Keeper Security online documentation_](https://github.com/Keeper-Security/discovery-and-rotation-saas-dev) and will not be repeated here.
 
-## CISCO APIC
-The [Cisco Application Policy Infrastructure Controller (APIC)](https://www.cisco.com/c/en_in/products/cloud-systems-management/application-policy-infrastructure-controller-apic/index.html) is the central control point for Cisco's Application Centric Infrastructure (ACI) solution. It's a software-defined networking (SDN) controller that manages and enforces policies, provides visibility and control over network resources, and orchestrates network provisioning. 
+This user guide covers the post-rotation script for the Keeper Security / CISCO APIC integration. 
+Details on how to use the post-rotation script are available at the 
+  [_Keeper Security online documentation_](https://github.com/Keeper-Security/discovery-and-rotation-saas-dev) and 
+  will not be repeated here.
 
-## Pre-requisites
-In order to use the post-rotation script, you will need the following prerequisites:
+## CISCO API
+The [Cisco Application Policy Infrastructure Controller (APIC)](https://www.cisco.com/c/en_in/products/cloud-systems-management/application-policy-infrastructure-controller-apic/index.html) is the central control point for 
+  Cisco's Application Centric Infrastructure (ACI) solution. 
+It's a software-defined networking (SDN) controller that manages and enforces policies, provides visibility and 
+  control over network resources, and orchestrates network provisioning. 
 
-**1. Requests Library:** Ensure that the requests library is installed in your Python environment. This library is necessary for making HTTP requests to Cisco devices.
+## Commander
 
-**2. Requests library installation:** The Requests library allows you to send HTTP requests easily. Activate a Python virtual environment in your Keeper Gateway environment and install the library using the following command:
+### Create SaaS Configuration Record
 
-    pip install requests
+In Commander, the `pam action saas config` command is used to create a SaaS Configuration record.
+This record currently is a **Login** record where the custom fields are used for settings.
 
-## Steps to Test CISCO APIC 
-### 1. Login to Cisco Sandbox: 
-- Go to the [Cisco DevNet Sandbox](hhttps://developer.cisco.com/)
-- Log in with your Cisco account credentials.
+First check if the **Cisco APIC** plugin is available.
+Using the `pam action saas config` command with `--list` flag will show all plugins available to your Keeper Gateway.
 
-    <img src="images/login_account.png" width="350" alt="login_account">
+```
+My Vault> pam action saas config -g <GATEWAY UID> --list
 
-- Select and launch the [sandbox](https://developer.cisco.com/site/sandbox/).
+Available SaaS Plugins
+ * Cisco APIC (Catalog) - Change a user password in Cisco APIC.
+ ...
+```
 
-    <img src="images/launch_sandbox.png" width="350" alt="launch_sandbox">
+If **Cisco APIC** is in the list, you can use this plugin.
 
-### 2. Select and Launch the Device
-- Navigate to the sandbox catalog.
-- Select the appropriate sandbox for your Cisco device (e.g., Cisco APIC, etc.).
-- Launch the sandbox.
+Before creating the SaaS Configuration Record, you can get a preview of fields you will be prompted for values.
+Next use `pam action saas config`, with `--info` flag and `-p "Cisco APIC"`, to get information about this plugin.
+```
+My Vault> pam action saas config -g <GATEWAY> -p "Cisco APIC" --info
 
-### 4. Create User in Cisco APIC 
-- To change user's password admin need to create a user inside Cisco APIC.
+Cisco APIC
+  Type: catalog
+  Author: Keeper Security (pam@keepersecurity.com)
+  Summary: Change a user password in Cisco APIC.
+  Documents: https://github.com/Keeper-Security/discovery-and-rotation-saas-dev/blob/main/integrations/cisco_apic/README.md
 
-    <img src="images/create_user_1.png" width="350" alt="create_user_1">
+  Fields
+   * Required: Admin Name - A user with administrative role.
+   * Required: Admin Password - Password for the APIC Admin.
+   * Required: URL - The URL to the APIC server.
+   * Optional: Verify SSL - Verify that the SSL certificate is valid: 'True' will validate certificates, 'False' 
+               will allow self-signed certificates.
+```
 
-    <img src="images/create_user_2.png" width="350" alt="create_user_2">
+Next use `pam action saas config`, with `--create` flag and `-p "Cisco APIC"`, to create a SaaS Configuration Record.
+You will be prompted to enter values for the fields.
+Any optional fields that do not have a value will not be added to the record.
 
-- Check the user's tab, the created user is present in the list. 
+```
+My Vault> pam action saas config -g <GATEWAY> -p "Cisco APIC" --create
 
-    <img src="images/created_user.png" width="350" alt="created_user">
+Admin Name
+Description:  user with administrative role.
+Field is required.
+Enter value > admin
 
-### 4. Receive Details via Email or DevNet Environment
+Admin Password
+Description: Password for the APIC Admin.
+Field is required.
+Enter value > ADMIN_PASSWORD
 
-After launching the sandbox, you will receive an email with the connection details or find them in the DevNet Environment under Quick Access.
+URL
+Description: The URL to the APIC server.
+Field is required.
+Enter value > https://myapicdc.cisco.com
 
-### 5. Store Developer Credentials
+Verify SSL
+Description: Verify that the SSL certificate is valid: 'True' will validate certificates, 'False' will allow self-signed certificates.
+Enter value (Allowed values: False, True; Enter for default value 'False') >
 
-At this point, you will see Developer Credentials— admin-username, and password. Extract the `ssl certificate` and save the certificate in a file name as `ssl-certificate.pem`. 
+Title for the SaaS configuration record> Cisco APIC Config
 
-<img src="images/ssl_certificate.png" width="350" alt="ssl_certificate">
+Created SaaS configuration record with UID of XXXXXXXXXXXXXXXXXXXXXX
+
+Assign this configuration to a user using the following command.
+  pam action saas add -c XXXXXXXXXXXXXXXXXXXXXX -u <PAM User Record UID>
+  See pam action saas add --help for more information.
+```
+
+Once you have a SaaS Configuration record, it can be assigned to a user using the `pam action saas add` command.
+
+```
+My Vault> pam action saas add -c XXXXXXXXXXXXXX -u YYYYYYYYYYYY
+
+Added AWS Cognito rotation to the user record.
+```
+
+Now when the user's password is rotated, the user's password in CiscoAPIC will also be updated.
+
+## Keeper Vault
+
+Currently Keeper Vault does not support SaaS management.
 
 
-## Steps to create Keeper security records and Cisco APIC
-### 1. Create and add details in New Rotation Record of type Login: 
-Store the values in a Keeper Security record of type `Login` named as `Cisco Authentication Record` and add an attachment `ssl-certificate.pem` extracted in step 4.
-
-<img src="images/login_record.png" width="350" alt="login_record">
-
-### 2. Create and add details in New Rotation Record of type PAM User:
-To rotate the user's password, you need to create a PAM user record and add the username in the login field. 
-
-<img src="images/pam_user.png" width="350" alt="pam_user">
-
-## Executing the script for rotating password
-Once you have your pre-requisites ready, make sure you cover the following:
-
-- Execute the following command in activated virtual environment.
-
-        plugin_test run -f <ciso_apic_python_script> -u <created_pam_user_record> -c <copied_uid_of_cisco_authentication_record>
-    
-    <img src="images/plugin_test_run.png" width="350" alt="plugin_test_run">
-
-- The above command rotate the cisco apic user's password.
-
-    <img src="images/new-password-credentials.png" width="350" alt="new-password-credentials">
-
-    <img src="images/password-change.png" width="350" alt="password-change">
-
-- Keeper Vault PAM User Record is updated.
-
-    <img src="images/rotated_password_success.png" width="350" alt="rotated_password_success">

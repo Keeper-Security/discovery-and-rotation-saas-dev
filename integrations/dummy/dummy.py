@@ -24,14 +24,14 @@ class SaasPlugin(SaasPluginBase):
             SaasConfigItem(
                 id="dummy_text",
                 label="Dummy Text",
-                desc="Just enter some required text",
+                desc="Just enter some required text.",
                 required=True
             ),
             SaasConfigItem(
                 id="dummy_art",
                 label="Font Type",
-                desc="Just enter some required text",
-                required=True,
+                desc="Set the font type.",
+                required=False,
                 enum_values=[
                     SaasConfigEnum(value="block"),
                     SaasConfigEnum(value="bulbhead"),

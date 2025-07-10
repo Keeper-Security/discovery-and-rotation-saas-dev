@@ -36,23 +36,15 @@ class SaasPluginBase:
         for item in self.__class__.config_schema():
             value = None
 
-            # Try to find the value.
-            # Pre-i18n it will match the label.
-            # Post-i18n it will match i18n code.
-            # And try the ID, just in case
-            for key in ["label", "id"]:
-                key_value = getattr(item, key)
-                if key_value is None:
-                    continue
-                try:
-                    value = config_record.get_custom_field_value(key_value, single=True)
-                    if value is not None:
-                        value = value.strip()
-                    if value == "":
-                        value = None
-                    break
-                except (Exception,):
-                    pass
+            # For now, we use the label
+            try:
+                value = config_record.get_custom_field_value(item.label, single=True)
+                if value is not None:
+                    value = value.strip()
+                if value == "":
+                    value = None
+            except (Exception,):
+                pass
 
             # If the value is None, set it to the default value.
             if value is None:
