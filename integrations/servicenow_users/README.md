@@ -60,7 +60,7 @@ In order to use the post-rotation script, you will need the following prerequisi
 - Enter the username copied from the previous step.
 - This will create a record of type **PAM User**.
 
-<img src="images/pam_user.png" width="350" alt="pam_user">
+    <img src="images/pam_user.png" width="350" alt="pam_user">
 
 ### 4. Create a login record 
 Once you have your pre-requisites ready, make sure you cover the following:
