@@ -1,18 +1,13 @@
 from __future__ import annotations
-from re import L
-from typing import List, TYPE_CHECKING, Optional
-import base64
-import json
-
-import requests
-from requests.models import Response
-
+from kdnrm.saas_plugins import SaasPluginBase
+from kdnrm.saas_type import Secret, SaasConfigItem
 from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
-from kdnrm.saas_plugins import SaasPluginBase
-from kdnrm.saas_type import ReturnCustomField, SaasConfigItem, SaasUser, Secret
+from pysnc import ServiceNowClient
+from typing import List, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
+    from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
 
 
@@ -24,276 +19,139 @@ class SaasPlugin(SaasPluginBase):
     author = "Keeper Security"
     email = "pam@keepersecurity.com"
 
-    def __init__(
-        self,
-        user: SaasUser,
-        config_record: Record,
-        provider_config=None,
-        force_fail=False,
-    ):
+    def __init__(self,
+                 user: SaasUser,
+                 config_record: Record,
+                 provider_config: Any = None,
+                 force_fail: bool = False):
+
         super().__init__(user, config_record, provider_config, force_fail)
-        self.user = user
-        self.config_record = config_record
-        self._user_sys_id = None
+
         self._client = None
-        self._can_rollback = False
+        self._user_sys_id = None
 
     @classmethod
     def requirements(cls) -> List[str]:
-        return ["requests"]
+        return ["pysnc"]
 
     @classmethod
     def config_schema(cls) -> List[SaasConfigItem]:
         return [
             SaasConfigItem(
-                id="admin_user",
+                id="admin_username",
                 label="Admin Username",
                 desc="ServiceNow administrator username.",
+                is_secret=True,
                 required=True,
             ),
             SaasConfigItem(
                 id="admin_password",
                 label="Admin Password",
                 desc="Password for the ServiceNow administrator.",
-                type="secret",
-                is_secret=True, # type: ignore
+                is_secret=True,
                 required=True,
             ),
             SaasConfigItem(
-                id="servicenow_instance_url",
-                label="ServiceNow Instance URL",
-                desc="Base URL of the ServiceNow instance (e.g. https://<instance>.service-now.com).",
-                type="url",
+                id="instance_name",
+                label="Instance Name",
+                desc="ServiceNow instance name (e.g., 'dev12345' for "
+                     "dev12345.service-now.com).",
+                is_secret=False,
                 required=True,
             ),
         ]
 
     @property
-    def can_rollback(self) -> bool:
-        return self._can_rollback
-
-    @can_rollback.setter
-    def can_rollback(self, value: bool):
-        self._can_rollback = value
-
-    def _initialize_client(self) -> ServiceNowClient:
-        """Initialize ServiceNow client with config credentials."""
-        Log.info("Retrieving ServiceNow admin credentials and instance URL from config record")
-
-        admin_username = self.get_config("admin_user")
-        admin_password = self.get_config("admin_password")
-        instance_url = self.get_config("servicenow_instance_url")
-
-        if not all([admin_username, admin_password, instance_url]):
-            raise SaasException(
-                "Admin credentials or ServiceNow instance URL are not configured."
-            )
-
-        return ServiceNowClient(
-            admin_user=admin_username,
-            admin_password=admin_password,
-            instance_url=instance_url,
-            user=self.user,
-        )
-
-    def _get_user_sys_id(self, client: ServiceNowClient) -> str:
-        """Get the sys_id for the user."""
-        sys_id = client.get_sys_id_for_user()
-        if not sys_id:
-            raise SaasException("Could not determine user sys_id.")
-        return sys_id
-
-    def change_password(self):
-        """Change password for ServiceNow user."""
-        Log.info("Changing password for ServiceNow Plugin user")
-
-        try:
-            self._client = self._initialize_client()
-            if not self._client:
-                raise SaasException("Could not initialize ServiceNow client.")
-
-            new_password = self.user.new_password.value  # type: ignore
-            self._user_sys_id = self._get_user_sys_id(self._client)
-            self.can_rollback = True
-
-            self._client.change_user_password(self._user_sys_id, new_password)
-            self._add_return_fields()
-            Log.info("Password changed successfully.")
-
-        except SaasException:
-            raise
-        except Exception as e:
-            Log.error(f"Unexpected error during password change: {e}")
-            raise SaasException(f"Password change failed: {e}") from e
-
-    def _add_return_fields(self):
-        """Add return fields for successful password change."""
-        if self._user_sys_id:
-            self.add_return_field(
-                ReturnCustomField(
-                    type="text",
-                    label="user_sys_id",
-                    value=Secret(self._user_sys_id)
-                )
-            )
-
-        instance_url = self.get_config("servicenow_instance_url")
-        if instance_url:
-            self.add_return_field(
-                ReturnCustomField(
-                    type="url",
-                    label="instance_url",
-                    value=Secret(instance_url)
-                )
-            )
-
-    def rollback_password(self):
-        """Rollback password to previous value."""
-        if self.user.prior_password is None:
-            raise SaasException(
-                "There is no current password. Cannot rotate back to prior password."
-            )
-
-        if not self._user_sys_id or not self._client:
-            raise SaasException("User sys_id or client is not set. Cannot roll back password.")
-
-        Log.debug("Rolling back password")
-        try:
-            old_password = self.user.prior_password.value  # type: ignore
-            self._client.change_user_password(self._user_sys_id, old_password)
-            Log.info("Password rolled back successfully.")
-        except Exception as e:
-            Log.error(f"Failed to rollback password: {e}")
-            raise SaasException(f"Password rollback failed: {e}") from e
-
-
-class ServiceNowClient:
-    """Client for interacting with ServiceNow REST API to manage user accounts."""
-
-    # Constants
-    API_TIMEOUT = 30
-    USER_TABLE_ENDPOINT = "/api/now/table/sys_user"
-
-    def __init__(
-        self,
-        admin_user: str,
-        admin_password: str,
-        instance_url: str,
-        user: SaasUser
-    ):
-        self._admin_user = admin_user
-        self._admin_password = admin_password
-        self._instance_url = instance_url.rstrip("/")
-        self._user = user
+    def client(self) -> ServiceNowClient:
+        if self._client is None:
+            Log.debug("initializing ServiceNow client")
+            
+            admin_username = self.get_config("admin_username")
+            admin_password = self.get_config("admin_password")
+            instance_name = self.get_config("instance_name")
+            
+            if not all([admin_username, admin_password, instance_name]):
+                raise SaasException("Admin credentials or instance name are "
+                                    "not configured.")
+            
+            self._client = ServiceNowClient(instance_name, 
+                                            auth=(admin_username, admin_password))
+            
+        return self._client
 
     @property
-    def _auth_header(self) -> dict:
-        """Build Basic Authentication header."""
-        credentials = f"{self._admin_user}:{self._admin_password}"
-        encoded = base64.b64encode(credentials.encode()).decode()
-        return {"Authorization": f"Basic {encoded}"}
+    def user_sys_id(self):
+        if self._user_sys_id is None:
+            Log.debug("getting user sys_id")
 
-    @property
-    def _default_headers(self) -> dict:
-        """Get default headers for ServiceNow API requests."""
-        return {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            **self._auth_header,
-        }
-
-    def _build_user_table_url(self, endpoint_path: str = "") -> str:
-        """Build URL for user table API endpoint."""
-        Log.debug(f"instance_url: {self._instance_url}")
-        base_url = f"{self._instance_url}{self.USER_TABLE_ENDPOINT}"
-        return f"{base_url}{endpoint_path}" if endpoint_path else base_url
-
-    def _make_request(
-        self,
-        method: str,
-        url: str,
-        headers: Optional[dict] = None,
-        **kwargs
-    ) -> Response:
-        """Make HTTP request with error handling."""
-        if headers is None:
-            headers = self._default_headers
-
-        try:
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=headers,
-                timeout=self.API_TIMEOUT,
-                **kwargs
-            )
-            return response
-        except requests.RequestException as e:
-            Log.error(f"Request failed: {e}")
-            raise SaasException(f"API request failed: {e}") from e
-
-    def _handle_error_response(self, response: Response) -> None:
-        """Handle error response codes from ServiceNow API."""
-        status_code_messages = {
-            400: "Bad request",
-            401: "Unauthorized - check admin credentials",
-            403: "Forbidden - insufficient permissions",
-            404: "Not found",
-            500: "Internal server error",
-        }
-
-        error_type = status_code_messages.get(
-            response.status_code,
-            "Unknown error"
-        )
-
-        try:
-            error_data = response.json()
-            if "error" in error_data:
-                error_detail = error_data["error"]
-                msg_text = error_detail.get("message", "")
-                detail_text = error_detail.get("detail", "")
-                detailed_message = f"{msg_text}. {detail_text}".strip(". ")
+            gr = self.client.GlideRecord("sys_user")
+            if gr.get("user_name", self.user.username.value):
+                self._user_sys_id = gr.get_value("sys_id")
             else:
-                detailed_message = str(error_data)
-        except (ValueError, json.JSONDecodeError):
-            detailed_message = response.text or "No error details"
+                raise SaasException(f"User '{self.user.username.value}' not "
+                                    f"found in ServiceNow.")
+      
+        return self._user_sys_id
 
-        error_msg = (
-            f"{error_type} (Status {response.status_code}): {detailed_message}"
-        )
+    @property
+    def can_rollback(self) -> bool:
+        # ServiceNow allows password rollback
+        return True
 
-        Log.error(error_msg)
-        raise SaasException(error_msg)
-
-    def get_sys_id_for_user(self) -> str:
-        """Get the ServiceNow sys_id for the given username."""
-        Log.info("Fetching sys_id for user in ServiceNow")
-        username = self._user.username.value
-        url = self._build_user_table_url(f"?user_name={username}")
-        response = self._make_request("GET", url)
-        if response.status_code == 200:
-            data = response.json().get("result", [])
-            if not data:
-                raise SaasException(f"User '{username}' not found in ServiceNow.")
-            sys_id = data[0].get("sys_id")
-            if not sys_id:
-                raise SaasException(f"No sys_id found for user '{username}'.")
-            return sys_id
-
-        self._handle_error_response(response)
-        return ""
-
-    def change_user_password(self, sys_id: str, new_password: str) -> None:
-        """Change the password for the user identified by sys_id."""
-        Log.info(f"Changing password for user with sys_id: {sys_id}")
-        url = self._build_user_table_url(f"/{sys_id}?sysparm_input_display_value=true")
-        payload = {
-            "user_password": new_password,
+    def update_password(self, password: Secret):
+        """
+        Update the password for the ServiceNow User Plugin user.
+        This method connects to the ServiceNow instance using the admin 
+        credentials and changes the password for the specified user.
+        """
+        Log.debug("updating the password")
+        
+        instance_name = self.get_config("instance_name")
+        url = (f"https://{instance_name}.service-now.com/api/now/table/"
+               f"sys_user/{self.user_sys_id}")
+        params = {"sysparm_input_display_value": "true"}
+        data = {
+            "user_password": password.value,
             "password_needs_reset": "false"
         }
-        response = self._make_request("PATCH", url, **{"json": payload})
-        if response.status_code == 200:
-            Log.info("Password changed successfully.")
-        else:
-            self._handle_error_response(response)
+
+        try:
+            response = self.client.session.patch(url, json=data, params=params)
+            if response.status_code == 200:
+                Log.debug("password updated successfully")
+            else:
+                Log.error(f"failed to update password: {response.status_code} "
+                          f"- {response.text}")
+                raise SaasException(f"Failed to update password: "
+                                    f"{response.status_code} - {response.text}")
+        except Exception as err:
+            Log.error(f"could not change password: {err}")
+            raise SaasException(f"Could not change password: {err}") from err
+
+    def change_password(self):
+        """
+        Change the password for the ServiceNow User Plugin user.
+        This method connects to the ServiceNow instance using the admin 
+        credentials and changes the password for the specified user.
+        """
+        Log.info("Changing password for ServiceNow User Plugin")
+        if self.user.new_password is None:
+            raise SaasException("New password is not set.")
+        self.update_password(password=self.user.new_password)
+        Log.info("password rotate was successful")
+
+    def rollback_password(self):
+        """
+        Rollback the password change for the ServiceNow User Plugin user.
+        This method is called to revert the password change if needed.
+        """
+
+        if self.user.prior_password is None:
+            raise SaasException("Cannot rollback password. The current "
+                                "password is not set.")
+
+        Log.info("Rolling back password change for ServiceNow User Plugin")
+        # Assert helps type checker understand prior_password is not None
+        assert self.user.prior_password is not None
+        self.update_password(password=self.user.prior_password)
+        Log.info("rolling back password was successful")
