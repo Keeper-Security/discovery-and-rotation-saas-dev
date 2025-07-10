@@ -13,11 +13,17 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class SaasPlugin(SaasPluginBase):
 
-    name = "ServiceNow User Plugin"
-    summary = "Change user password in ServiceNow."
+    name = "ServiceNow User"
+    summary = "Change user password in ServiceNow"
     readme = "README.md"
     author = "Keeper Security"
     email = "pam@keepersecurity.com"
+
+    # ServiceNow API Constants
+    SERVICENOW_BASE_URL = "https://{instance}.service-now.com"
+    SERVICENOW_USER_API_ENDPOINT = "/api/now/table/sys_user"
+    SERVICENOW_USER_TABLE = "sys_user"
+    API_TIMEOUT = 30
 
     def __init__(self,
                  user: SaasUser,
@@ -63,24 +69,33 @@ class SaasPlugin(SaasPluginBase):
 
     @property
     def client(self) -> ServiceNowClient:
+        """
+        Get the ServiceNow client.
+        This method creates a new ServiceNowClient instance with the provided 
+        credentials and returns it.
+        """
         if self._client is None:
             Log.debug("initializing ServiceNow client")
-            
+
             admin_username = self.get_config("admin_username")
             admin_password = self.get_config("admin_password")
             instance_name = self.get_config("instance_name")
-            
-            if not all([admin_username, admin_password, instance_name]):
-                raise SaasException("Admin credentials or instance name are "
-                                    "not configured.")
-            
-            self._client = ServiceNowClient(instance_name, 
-                                            auth=(admin_username, admin_password))
-            
+
+            # Create a new ServiceNowClient instance with provided credentials
+            self._client = ServiceNowClient(
+                instance=instance_name,
+                auth=(admin_username, admin_password)
+            )
         return self._client
 
     @property
     def user_sys_id(self):
+        """
+        Get the sys_id for the ServiceNow User Plugin user.
+        
+        This method connects to the ServiceNow instance using the admin 
+        credentials and retrieves the sys_id for the specified user.
+        """
         if self._user_sys_id is None:
             Log.debug("getting user sys_id")
 
@@ -90,25 +105,28 @@ class SaasPlugin(SaasPluginBase):
             else:
                 raise SaasException(f"User '{self.user.username.value}' not "
                                     f"found in ServiceNow.")
-      
+
         return self._user_sys_id
+
+    def _build_user_api_url(self, sys_id: str) -> str:
+        """Build the ServiceNow user API URL for a specific user."""
+        instance_name = self.get_config("instance_name")
+        base_url = self.SERVICENOW_BASE_URL.format(instance=instance_name)
+        return f"{base_url}{self.SERVICENOW_USER_API_ENDPOINT}/{sys_id}"
 
     @property
     def can_rollback(self) -> bool:
-        # ServiceNow allows password rollback
         return True
 
     def update_password(self, password: Secret):
         """
         Update the password for the ServiceNow User Plugin user.
+        
         This method connects to the ServiceNow instance using the admin 
         credentials and changes the password for the specified user.
         """
         Log.debug("updating the password")
-        
-        instance_name = self.get_config("instance_name")
-        url = (f"https://{instance_name}.service-now.com/api/now/table/"
-               f"sys_user/{self.user_sys_id}")
+        url = self._build_user_api_url(self.user_sys_id)
         params = {"sysparm_input_display_value": "true"}
         data = {
             "user_password": password.value,
@@ -116,14 +134,20 @@ class SaasPlugin(SaasPluginBase):
         }
 
         try:
-            response = self.client.session.patch(url, json=data, params=params)
+            response = self.client.session.patch(
+                url,
+                json=data,
+                params=params,
+                timeout=self.API_TIMEOUT
+            )
             if response.status_code == 200:
                 Log.debug("password updated successfully")
             else:
-                Log.error(f"failed to update password: {response.status_code} "
-                          f"- {response.text}")
+                Log.error(f"failed to update password: "
+                          f"{response.status_code} - {response.text}")
                 raise SaasException(f"Failed to update password: "
-                                    f"{response.status_code} - {response.text}")
+                                    f"{response.status_code} - "
+                                    f"{response.text}")
         except Exception as err:
             Log.error(f"could not change password: {err}")
             raise SaasException(f"Could not change password: {err}") from err
@@ -131,6 +155,7 @@ class SaasPlugin(SaasPluginBase):
     def change_password(self):
         """
         Change the password for the ServiceNow User Plugin user.
+        
         This method connects to the ServiceNow instance using the admin 
         credentials and changes the password for the specified user.
         """
@@ -143,6 +168,7 @@ class SaasPlugin(SaasPluginBase):
     def rollback_password(self):
         """
         Rollback the password change for the ServiceNow User Plugin user.
+        
         This method is called to revert the password change if needed.
         """
 
@@ -151,7 +177,5 @@ class SaasPlugin(SaasPluginBase):
                                 "password is not set.")
 
         Log.info("Rolling back password change for ServiceNow User Plugin")
-        # Assert helps type checker understand prior_password is not None
-        assert self.user.prior_password is not None
         self.update_password(password=self.user.prior_password)
         Log.info("rolling back password was successful")

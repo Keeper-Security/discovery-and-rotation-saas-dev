@@ -98,6 +98,8 @@ Once you have your pre-requisites ready, make sure you cover the following:
 Once you have your pre-requisites ready, make sure you cover the following:
 
 - Execute the following command in activated virtual environment.
+      
+      plugin_test run -f <servicenow_user_python_script> -u <uid_created_pam_user_record> -c <copied_uid_of_servicenow_users_authentication_record>
 
 - The above command rotate the ServiceNow user's password.
 
