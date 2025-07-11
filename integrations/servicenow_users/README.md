@@ -10,11 +10,9 @@ ServiceNow is a cloud-based platform as a service (PaaS) that provides a wide ra
 ## Pre-requisites
 In order to use the post-rotation script, you will need the following prerequisites:
 
-**1. Requests Library:** Ensure that the requests library is installed in your Python environment. This library is necessary for making HTTP requests to Service-Now.
+**1. PySNC Library:** Ensure that the pysnc library is installed in your Python environment. 
 
-**2. Requests library installation:** The Requests library allows you to send HTTP requests easily. Activate a Python virtual environment in your Keeper Gateway environment and install the library using the following command:
-
-    pip install requests
+    pip install pysnc
 
 ## Steps to Test ServiceNow 
 ### 1. Login to Service Now Developer Page:
@@ -32,7 +30,7 @@ In order to use the post-rotation script, you will need the following prerequisi
 
     <img src="images/manage_instance_1.png" width="350" alt="manage_instance_1">
 
-- In the **Manage Instance Password** section, you’ll find your **instance UR**L, **admin username**, and **password**.
+- In the **Manage Instance Password** section, you’ll find your **instance URL**, **admin username**, and **password**.
 
     <img src="images/manage_instance_password.png" width="350" alt="manage_instance_password">
 
