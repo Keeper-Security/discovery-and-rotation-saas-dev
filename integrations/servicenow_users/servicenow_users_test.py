@@ -1,27 +1,16 @@
 from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
+from pysnc.exceptions import (
+    AuthenticationException,
+)
+from typing import Optional
 from servicenow_users import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser
 from kdnrm.exceptions import SaasException
-from pysnc.exceptions import (
-    AuthenticationException,
-    AclQueryException,
-    RoleException,
-    NoRecordException,
-    NotFoundException,
-    RequestException,
-    RestException,
-    InstanceException,
-    EvaluationException,
-    UpdateException,
-    InsertException,
-    DeleteException,
-    UploadException
-)
-from typing import Optional
+
 
 
 class ServiceNowUsersTest(unittest.TestCase):
@@ -90,6 +79,12 @@ class ServiceNowUsersTest(unittest.TestCase):
         self.assertFalse(instance_name.is_secret)
         self.assertTrue(instance_name.required)
 
+    def test_constants(self):
+        """Test that constants are defined correctly."""
+        self.assertEqual(SaasPlugin.BASE_URL, "https://{instance}.service-now.com")
+        self.assertEqual(SaasPlugin.USER_API_PATH, "/api/now/table/sys_user")
+        self.assertEqual(SaasPlugin.TIMEOUT, 30)
+
     @patch('servicenow_users.ServiceNowClient')
     def test_client_property(self, mock_servicenow_client):
         """Test that the client property initializes ServiceNowClient correctly."""
@@ -144,17 +139,70 @@ class ServiceNowUsersTest(unittest.TestCase):
             _ = plugin.user_sys_id
         self.assertIn("not found in ServiceNow", str(ctx.exception))
 
-    def test_can_rollback(self):
-        """Test that can_rollback property returns True."""
+    @patch('servicenow_users.ServiceNowClient')
+    def test_user_sys_id_authentication_exception(self, mock_servicenow_client):
+        """Test user sys_id with authentication exception."""
         plugin = self.plugin()
-        self.assertTrue(plugin.can_rollback)
+        
+        # Mock GlideRecord to raise AuthenticationException
+        mock_gr = MagicMock()
+        mock_gr.get.side_effect = AuthenticationException("Authentication failed")
+        
+        mock_client_instance = MagicMock()
+        mock_client_instance.GlideRecord.return_value = mock_gr
+        mock_servicenow_client.return_value = mock_client_instance
+        
+        # Test exception is raised
+        with self.assertRaises(SaasException) as ctx:
+            _ = plugin.user_sys_id
+        self.assertIn("Authentication failed", str(ctx.exception))
 
-    def test_build_user_api_url(self):
+    def test_can_rollback_default(self):
+        """Test that can_rollback property returns False by default."""
+        plugin = self.plugin()
+        self.assertFalse(plugin.can_rollback)
+
+    def test_can_rollback_setter(self):
+        """Test can_rollback setter functionality."""
+        plugin = self.plugin()
+        
+        # Initially False
+        self.assertFalse(plugin.can_rollback)
+        
+        # Set to True
+        plugin.can_rollback = True
+        self.assertTrue(plugin.can_rollback)
+        
+        # Set back to False
+        plugin.can_rollback = False
+        self.assertFalse(plugin.can_rollback)
+
+    def test_get_user_url(self):
         """Test URL building method."""
         plugin = self.plugin()
-        url = plugin._build_user_api_url("test_sys_id")
+        
+        # Mock user_sys_id to avoid actual lookup
+        plugin._user_sys_id = "test_sys_id"
+        
+        url = plugin._get_user_url()
         expected_url = "https://dev12345.service-now.com/api/now/table/sys_user/test_sys_id"
         self.assertEqual(url, expected_url)
+
+    def test_error_handling(self):
+        """Test error handling method."""
+        plugin = self.plugin()
+        
+        # Test JSON error response
+        mock_response = MagicMock()
+        mock_response.text = '{"error":{"message":"Operation Failed","detail":"ACL Exception Update Failed"}}'
+        
+        result = plugin.error_handling(mock_response)
+        self.assertEqual(result, "Operation Failed: ACL Exception Update Failed")
+        
+        # Test simple text response
+        mock_response.text = "Simple error message"
+        result = plugin.error_handling(mock_response)
+        self.assertEqual(result, "Simple error message")
 
     @patch('servicenow_users.ServiceNowClient')
     def test_update_password_success(self, mock_servicenow_client):
@@ -188,14 +236,14 @@ class ServiceNowUsersTest(unittest.TestCase):
         self.assertIn("https://dev12345.service-now.com/api/now/table/sys_user/sys_id_12345", call_args[0])
 
     @patch('servicenow_users.ServiceNowClient')
-    def test_update_password_http_error(self, mock_servicenow_client):
-        """Test password update with HTTP error (currently doesn't handle status codes)."""
+    def test_update_password_403_error(self, mock_servicenow_client):
+        """Test password update with 403 authorization error."""
         plugin = self.plugin()
         
         # Mock the client and error response
         mock_response = MagicMock()
         mock_response.status_code = 403
-        mock_response.text = "Forbidden"
+        mock_response.text = '{"error":{"message":"Operation Failed","detail":"ACL Exception Update Failed"}}'
         
         mock_session = MagicMock()
         mock_session.patch.return_value = mock_response
@@ -211,12 +259,40 @@ class ServiceNowUsersTest(unittest.TestCase):
         
         mock_servicenow_client.return_value = mock_client_instance
         
-        # With current implementation, HTTP errors are not handled 
-        # so this should pass without exception
-        plugin.update_password(Secret("NewPassword123"))
+        # Test exception is raised
+        with self.assertRaises(SaasException) as ctx:
+            plugin.update_password(Secret("NewPassword123"))
+        self.assertIn("Operation Failed: ACL Exception Update Failed", str(ctx.exception))
+
+    @patch('servicenow_users.ServiceNowClient')
+    def test_update_password_other_http_error(self, mock_servicenow_client):
+        """Test password update with other HTTP error that enables rollback."""
+        plugin = self.plugin()
         
-        # Verify the patch call was made
-        mock_session.patch.assert_called_once()
+        # Mock the client and error response
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+        
+        mock_session = MagicMock()
+        mock_session.patch.return_value = mock_response
+        
+        mock_client_instance = MagicMock()
+        mock_client_instance.session = mock_session
+        
+        # Mock GlideRecord for user_sys_id
+        mock_gr = MagicMock()
+        mock_gr.get.return_value = True
+        mock_gr.get_value.return_value = "sys_id_12345"
+        mock_client_instance.GlideRecord.return_value = mock_gr
+        
+        mock_servicenow_client.return_value = mock_client_instance
+        
+        # Test exception is raised and rollback is enabled
+        with self.assertRaises(SaasException) as ctx:
+            plugin.update_password(Secret("NewPassword123"))
+        self.assertIn("500: Internal Server Error", str(ctx.exception))
+        self.assertTrue(plugin.can_rollback)
 
     @patch('servicenow_users.ServiceNowClient')
     def test_change_password_success(self, mock_servicenow_client):
@@ -302,118 +378,6 @@ class ServiceNowUsersTest(unittest.TestCase):
         with self.assertRaises(SaasException) as ctx:
             plugin.rollback_password()
         self.assertIn("Cannot rollback password", str(ctx.exception))
-
-    def test_rollback_password_with_prior_password(self):
-        """Test rollback functionality with valid prior password."""
-        plugin = self.plugin(prior_password=Secret("OldPassword456"))
-        
-        # Rollback should be enabled since can_rollback returns True
-        self.assertTrue(plugin.can_rollback)
-
-    def test_extract_servicenow_error(self):
-        """Test ServiceNow error extraction."""
-        plugin = self.plugin()
-        
-        # Test AuthenticationException
-        auth_error = AuthenticationException({'error': {'message': 'User Not Authenticated', 'detail': 'Required to provide Auth information'}})
-        result = plugin._extract_servicenow_error_message(auth_error)
-        self.assertEqual(result, "Message: 'User Not Authenticated', Detail: 'Required to provide Auth information'")
-        
-        # Test UpdateException
-        update_error = UpdateException("Update failed")
-        result = plugin._extract_servicenow_error_message(update_error)
-        self.assertIn("Update failed", result)
-        
-        # Test NoRecordException
-        no_record_error = NoRecordException("Record not found")
-        result = plugin._extract_servicenow_error_message(no_record_error)
-        self.assertIn("Record not found", result)
-        
-        # Test direct message format
-        direct_error = AuthenticationException({'message': 'Access Denied', 'detail': 'Insufficient permissions'})
-        result = plugin._extract_servicenow_error_message(direct_error)
-        self.assertEqual(result, "Message: 'Access Denied', Detail: 'Insufficient permissions'")
-
-    @patch('servicenow_users.ServiceNowClient')
-    def test_user_sys_id_authentication_exception(self, mock_servicenow_client):
-        """Test user sys_id with authentication exception."""
-        plugin = self.plugin()
-        
-        # Mock GlideRecord to raise AuthenticationException
-        mock_gr = MagicMock()
-        mock_gr.get.side_effect = AuthenticationException({'error': {'message': 'User Not Authenticated', 'detail': 'Required to provide Auth information'}})
-        
-        mock_client_instance = MagicMock()
-        mock_client_instance.GlideRecord.return_value = mock_gr
-        mock_servicenow_client.return_value = mock_client_instance
-        
-        # Test exception is raised
-        with self.assertRaises(SaasException) as ctx:
-            _ = plugin.user_sys_id
-        self.assertIn("AuthenticationException: Message: 'User Not Authenticated', Detail: 'Required to provide Auth information'", str(ctx.exception))
-
-    @patch('servicenow_users.ServiceNowClient')
-    def test_update_password_authentication_exception(self, mock_servicenow_client):
-        """Test update password with authentication exception."""
-        plugin = self.plugin()
-        
-        # Mock GlideRecord for user_sys_id
-        mock_gr = MagicMock()
-        mock_gr.get.return_value = True
-        mock_gr.get_value.return_value = "sys_id_12345"
-        
-        # Mock session to raise AuthenticationException
-        mock_session = MagicMock()
-        mock_session.patch.side_effect = AuthenticationException({'error': {'message': 'User Not Authenticated', 'detail': 'Required to provide Auth information'}})
-        
-        mock_client_instance = MagicMock()
-        mock_client_instance.GlideRecord.return_value = mock_gr
-        mock_client_instance.session = mock_session
-        
-        mock_servicenow_client.return_value = mock_client_instance
-        
-        # Test exception is raised
-        with self.assertRaises(SaasException) as ctx:
-            plugin.update_password(Secret("NewPassword123"))
-        self.assertIn("AuthenticationException: Message: 'User Not Authenticated', Detail: 'Required to provide Auth information'", str(ctx.exception))
-
-    @patch('servicenow_users.ServiceNowClient')
-    def test_client_authentication_exception(self, mock_servicenow_client):
-        """Test client property with authentication exception."""
-        plugin = self.plugin()
-        
-        # Mock ServiceNowClient to raise AuthenticationException
-        mock_servicenow_client.side_effect = AuthenticationException({'error': {'message': 'User Not Authenticated', 'detail': 'Required to provide Auth information'}})
-        
-        # Test exception is raised
-        with self.assertRaises(SaasException) as ctx:
-            _ = plugin.client
-        self.assertIn("AuthenticationException: Message: 'User Not Authenticated', Detail: 'Required to provide Auth information'", str(ctx.exception))
-
-    @patch('servicenow_users.ServiceNowClient')
-    def test_rollback_password_authentication_exception(self, mock_servicenow_client):
-        """Test rollback password with authentication exception."""
-        plugin = self.plugin(prior_password=Secret("OldPassword456"))
-        
-        # Mock GlideRecord for user_sys_id
-        mock_gr = MagicMock()
-        mock_gr.get.return_value = True
-        mock_gr.get_value.return_value = "sys_id_12345"
-        
-        # Mock session to raise AuthenticationException
-        mock_session = MagicMock()
-        mock_session.patch.side_effect = AuthenticationException({'error': {'message': 'User Not Authenticated', 'detail': 'Required to provide Auth information'}})
-        
-        mock_client_instance = MagicMock()
-        mock_client_instance.GlideRecord.return_value = mock_gr
-        mock_client_instance.session = mock_session
-        
-        mock_servicenow_client.return_value = mock_client_instance
-        
-        # Test exception is raised
-        with self.assertRaises(SaasException) as ctx:
-            plugin.rollback_password()
-        self.assertIn("AuthenticationException: Message: 'User Not Authenticated', Detail: 'Required to provide Auth information'", str(ctx.exception))
 
 
 if __name__ == "__main__":
