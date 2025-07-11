@@ -53,6 +53,8 @@ In order to use the post-rotation script, you will need the following prerequisi
 - To set a password for the new user, select the user and click **Set Password**.
 - If the user needs to reset their password after login, enable the **Password needs reset** option.
 
+> **Note** : To grant a user administrative privileges, assign them the admin role.
+
 ## 3. Create a PAM User Record 
 - Create a record of type **PAM User** inside the Keeper Vault.
 - Enter the username copied from the previous step.

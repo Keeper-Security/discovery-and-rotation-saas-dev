@@ -64,7 +64,7 @@ class ServiceNowUsersTest(unittest.TestCase):
         # Check admin_username field
         admin_username = schema[0]
         self.assertEqual("admin_username", admin_username.id)
-        self.assertTrue(admin_username.is_secret)
+        self.assertFalse(admin_username.is_secret)  # Username is not a secret
         self.assertTrue(admin_username.required)
         
         # Check admin_password field
