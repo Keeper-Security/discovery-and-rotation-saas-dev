@@ -12,7 +12,6 @@ from kdnrm.saas_type import SaasUser
 from kdnrm.exceptions import SaasException
 
 
-
 class ServiceNowUsersTest(unittest.TestCase):
 
     def setUp(self):
@@ -64,18 +63,21 @@ class ServiceNowUsersTest(unittest.TestCase):
         # Check admin_username field
         admin_username = schema[0]
         self.assertEqual("admin_username", admin_username.id)
-        self.assertFalse(admin_username.is_secret)  # Username is not a secret
+        self.assertEqual("Admin Username", admin_username.label)
         self.assertTrue(admin_username.required)
         
         # Check admin_password field
         admin_password = schema[1]
         self.assertEqual("admin_password", admin_password.id)
+        self.assertEqual("Admin Password", admin_password.label)
+        self.assertEqual("secret", admin_password.type)
         self.assertTrue(admin_password.is_secret)
         self.assertTrue(admin_password.required)
         
         # Check instance_name field
         instance_name = schema[2]
         self.assertEqual("instance_name", instance_name.id)
+        self.assertEqual("Instance Name", instance_name.label)
         self.assertFalse(instance_name.is_secret)
         self.assertTrue(instance_name.required)
 
@@ -194,13 +196,13 @@ class ServiceNowUsersTest(unittest.TestCase):
         
         # Test JSON error response
         mock_response = MagicMock()
-        mock_response.text = '{"error":{"message":"Operation Failed","detail":"ACL Exception Update Failed"}}'
+        mock_response.json.return_value = {"error":{"message":"Operation Failed","detail":"ACL Exception Update Failed"}}
         
         result = plugin.error_handling(mock_response)
         self.assertEqual(result, "Operation Failed: ACL Exception Update Failed")
         
-        # Test simple text response
-        mock_response.text = "Simple error message"
+        # Test simple response
+        mock_response.json.return_value = {"error":{"message":"Simple error message"}}
         result = plugin.error_handling(mock_response)
         self.assertEqual(result, "Simple error message")
 
@@ -243,7 +245,7 @@ class ServiceNowUsersTest(unittest.TestCase):
         # Mock the client and error response
         mock_response = MagicMock()
         mock_response.status_code = 403
-        mock_response.text = '{"error":{"message":"Operation Failed","detail":"ACL Exception Update Failed"}}'
+        mock_response.json.return_value = {"error":{"message":"Operation Failed","detail":"ACL Exception Update Failed"}}
         
         mock_session = MagicMock()
         mock_session.patch.return_value = mock_response
@@ -272,7 +274,7 @@ class ServiceNowUsersTest(unittest.TestCase):
         # Mock the client and error response
         mock_response = MagicMock()
         mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
+        mock_response.json.return_value = {"error":{"message":"Internal Server Error"}}
         
         mock_session = MagicMock()
         mock_session.patch.return_value = mock_response
