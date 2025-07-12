@@ -94,7 +94,7 @@ from kdnrm.exceptions import SaasException
 ```python
 from __future__ import annotations
 from kdnrm.saas_plugins import SaasConfigItem
-from kdnrm.saas_type import ReturnCustomField
+from kdnrm.saas_type import ReturnCustomField, ReturnAttachFile
 from typing import Optional, List, Any, TYPE_CHECKING
 
 # Only needed if you need a special module.
@@ -160,6 +160,15 @@ class SaasPluginBase:
         """
         self.return_fields.append(field)
         
+    def add_file(self, file: ReturnAttachFile):
+        """
+        Attach a file to the pamUser record.
+
+        It will replace an existing file with the same Title.
+        """
+
+        self.attach_files.append(file)
+        
     def change_password(self):
         """
         Perform the password rotation.
@@ -184,7 +193,15 @@ class Field(BaseModel):
     type: str
     label: str
     values: List[Any]
+   
+    
+class File(BaseModel):
+    title: str
+    name: str
+    content_type: Optional[str] = None
+    content: Optional[bytes] = None
 
+    
 class SaasUser(BaseModel):
     username: Secret
     dn: Optional[Secret] = None
@@ -194,6 +211,7 @@ class SaasUser(BaseModel):
     prior_private_key: Optional[Secret] = None
     database: Optional[str] = None
     fields: List[Field] = []
+    files: Dict[str, File] = {}
 ```
 
 * `username` - The Login field from the PAM User record.
@@ -205,6 +223,9 @@ class SaasUser(BaseModel):
 * `database` - The Connect Database from the PAM User record.
 * `fields` - A list of custom fields and values from the PAM User record.
              Will be a list of `Field` instances.
+* `files` - A lookup of files.
+            The key is the title of the file. 
+            The key is case-sensitive.
 
 #### user_and_domain
 
@@ -457,6 +478,12 @@ def can_rollback(self) -> bool:
     return True
 ```
 
+Most service have a way to check the password history policy.
+If possible, this method should check the password history policy to see if it can roll back.
+For example, if the history count is 0, most likely rolling back is possible.
+But if the history count is one, or greater, roll back will not be possible.
+
+
 ### add_return_field(ReturnCustomField)
 
 This method is used to create, or update, custom field in the PAM User record.
@@ -493,6 +520,46 @@ class ReturnCustomField(BaseModel):
            The default is `text` which will show the value.
            The type can be set to `secret` to redact the value in the Vault.
 * `value` - The value for the field. This can be either a Secret or str value.
+
+### add_file(ReturnAttachFile)
+
+This method is used to attach a file to the user record.
+If all rotation were successful, the files that were added will be uploaded and attached to the user record.
+
+```python
+def change_password(self):
+  
+    # Do stuff
+    
+
+    self.add_file(
+        ReturnAttachFile(
+            title="My Cert",
+            content=pam_file_in_bytes,
+            content_type="application/x-pem-file"
+        )
+    )
+
+```
+
+An instance of `ReturnAttachFile` is the only parameter for the method.
+
+```python
+class ReturnAttachFile(BaseModel):
+    title: str
+    content: bytes
+    name: Optional[str] = None
+    content_type: Optional[str] = None
+```
+
+* `title` - The title of the file record. This is what will be displayed in the Vault.
+* `content` - The content of the file. 
+              It needs to by in bytes to avoid 
+* `name` - Optional file name.
+           If left blank, one will be created from the title.
+           Only useful if programmatically, via a KSM SDK, the file is downloaded.
+*  `content_type` - Optional. Just sets the content-type/mime-type of file. 
+                    Only useful is the downloading target trigger events based on the the content type/mime type.
 
 ### change_password()
 

@@ -9,6 +9,7 @@ from keeper_secrets_manager_core import SecretsManager
 from keeper_secrets_manager_core.storage import FileKeyValueStorage
 from keeper_secrets_manager_core.core import RecordCreate
 from keeper_secrets_manager_core.utils import generate_password
+from keeper_secrets_manager_core.dto.dtos import KeeperFileUpload
 import traceback
 import sys
 import os
@@ -16,13 +17,13 @@ from colorama import Fore, Style
 from typing import Optional, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from keeper_secrets_manager_core.dto.dtos import Record
-    from kdnrm.saas_type import SaasConfigItem
+    from keeper_secrets_manager_core.dto.dtos import Record, KeeperFile
+    from kdnrm.saas_type import SaasConfigItem, ReturnAttachFile
 
 
 def load_module_from_path(module_name, file_path):
 
-    if os.path.exists(file_path) is False:
+    if not os.path.exists(file_path):
         raise Exception(f"The plugin {file_path} does not exist.")
 
     spec = importlib.util.spec_from_file_location(module_name, file_path)
@@ -139,7 +140,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                 field_value = getattr(record, access)(label, single=True)
                 if field_value is None:
                     return None
-                if is_secret is False:
+                if not is_secret:
                     return field_value
                 else:
                     return Secret(field_value)
@@ -240,11 +241,18 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
             if no_old_password is True:
                 old_password = None
 
+            # If there are attached file, make a lookup by title.
+            # Do not download here, download when needed; people might attach stuff not related to SaaS or PAM.
+            files = {}
+            for attached_file in user_record.files:
+                files[attached_file.title] = attached_file
+
             user = SaasUser(
                 username=Secret(user_record.get_standard_field_value("login", single=True)),
                 new_password=Secret(new_password) if new_password is not None else None,
                 prior_password=Secret(old_password),
-                fields=fields
+                fields=fields,
+                files=files
             )
         except Exception as err:
             raise Exception(f"Cannot get value from PAM USer record: {err}")
@@ -294,6 +302,43 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
             user_record.set_standard_field_value("password", new_password)
             getattr(user_record, "_update")()
             sm.save(user_record)
+
+            if len(plugin.attach_files) > 0:
+
+                # Reload the record to get current version after save.
+                user_record = sm.get_secrets(user_record.uid)[0]
+
+                delete_files = []
+                for new_file in plugin.attach_files:  # type: ReturnAttachFile
+                    for old_file in user_record.files:  # type: KeeperFile
+                        if old_file.title == new_file.title:
+                            delete_files.append(old_file.f.get("fileUid"))
+
+                    file = KeeperFileUpload(
+                        title=new_file.title,
+                        name=new_file.name,
+                        data=new_file.content,
+                        mime_type=new_file.content_type
+                    )
+
+                    sm.upload_file(user_record, file)
+
+                if len(delete_files) > 0:
+                    user_record = sm.get_secrets(user_record.uid)[0]
+                    Log.debug(f"user record has {len(user_record.files)}")
+                    Log.debug(f"removing {len(delete_files)} old file(s) that have been replaced")
+
+                    fields = user_record.dict.get("fields", [])
+                    for field in fields:
+                        if field.get("type") == "fileRef":
+                            for file_uid in delete_files:
+                                Log.debug(f"  * remove {file_uid}")
+                                field.get("value").remove(file_uid)
+
+                    Log.debug(f"FIELDS: {fields}")
+                    user_record.dict["fields"] = fields
+
+                    sm.save(user_record)
 
             print(f"{Fore.GREEN}Rotation was successful{Style.RESET_ALL}")
 

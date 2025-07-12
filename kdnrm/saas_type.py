@@ -1,8 +1,10 @@
 from __future__ import annotations
 from kdnrm.secret import Secret
 from pydantic import BaseModel, ConfigDict
+from typing import Union, Optional, List, Any, Dict, TYPE_CHECKING
 
-from typing import Union, Optional, List, Any
+if TYPE_CHECKING:
+    from keeper_secrets_manager_core.dto.dtos import KeeperFile
 
 
 class SaasConfigEnum(BaseModel):
@@ -32,6 +34,13 @@ class Field(BaseModel):
     values: List[Any]
 
 
+class File(BaseModel):
+    title: str
+    name: str
+    content_type: Optional[str] = None
+    content: Optional[bytes] = None
+
+
 class SaasUser(BaseModel):
     username: Secret
     dn: Optional[Secret] = None
@@ -41,6 +50,7 @@ class SaasUser(BaseModel):
     prior_private_key: Optional[Secret] = None
     database: Optional[str] = None
     fields: List[Field] = []
+    files: Dict[str, Any] = {}
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -99,3 +109,11 @@ class ReturnCustomField(BaseModel):
     value: Optional[Union[str, Secret]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+# This structure is used to attach a file to the pamUser record.
+class ReturnAttachFile(BaseModel):
+    title: str
+    content: bytes
+    name: Optional[str] = None
+    content_type: Optional[str] = None

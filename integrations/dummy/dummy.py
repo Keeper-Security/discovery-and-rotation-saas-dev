@@ -1,6 +1,6 @@
 from __future__ import annotations
 from kdnrm.saas_plugins import SaasPluginBase
-from kdnrm.saas_type import SaasConfigItem, ReturnCustomField, SaasConfigEnum
+from kdnrm.saas_type import SaasConfigItem, ReturnCustomField, ReturnAttachFile, SaasConfigEnum
 from kdnrm.log import Log
 from kdnrm.secret import Secret
 from datetime import datetime
@@ -65,6 +65,13 @@ class SaasPlugin(SaasPluginBase):
             ReturnCustomField(
                 label="This Was Run On",
                 value=Secret(now.strftime("%Y-%m-%d %H:%M:%S"))
+            )
+        )
+
+        self.add_file(
+            ReturnAttachFile(
+                title="Dummy File",
+                content=f"THIS IS A DUMMY FILE: {now}".encode()
             )
         )
 

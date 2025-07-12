@@ -6,8 +6,8 @@ import re
 from typing import Optional, List, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from keeper_secrets_manager_core.dto.dtos import Record
-    from kdnrm.saas_type import ReturnCustomField, SaasUser, SaasConfigItem
+    from keeper_secrets_manager_core.dto.dtos import Record, KeeperFile
+    from kdnrm.saas_type import ReturnCustomField, ReturnAttachFile, SaasUser, SaasConfigItem
 
 
 class SaasPluginBase:
@@ -141,13 +141,36 @@ class SaasPluginBase:
         self.provider_config = provider_config
 
         self.return_fields = []  # type: List[ReturnCustomField]
+        self.attach_files = []  # type: List[ReturnAttachFile]
 
         # Common name for the remote management instance.
         # Can be used for a persistent client
         self._client = None
 
     def get_config(self, key: str, default: Optional[Any] = None) -> Any:
-        return self.field_config.get(key, default)
+        value = self.field_config.get(key)
+        if value is None or str(value).strip() == "":
+            value = default
+        return value
+
+    def file_exists(self, title: str) -> bool:
+        """
+        Check if the file exists on the PAM User record.
+        """
+        return title in self.user.files
+
+    def download_file(self, title: str) -> bytes:
+        """
+        Download the file and return the bytes.
+
+        If the content is a string, use decode() to covert bytes to string.
+        """
+
+        if not self.file_exists(title):
+            raise SaasException(f'The file "{title}" does not exists.')
+
+        file = self.user.files[title]  # type: KeeperFile
+        return file.get_file_data()
 
     @property
     def can_rollback(self) -> bool:
@@ -166,6 +189,15 @@ class SaasPluginBase:
         """
 
         self.return_fields.append(field)
+
+    def add_file(self, file: ReturnAttachFile):
+        """
+        Attach a file to the pamUser record.
+
+        It will replace an existing file.
+        """
+
+        self.attach_files.append(file)
 
     def change_password(self):
         """
