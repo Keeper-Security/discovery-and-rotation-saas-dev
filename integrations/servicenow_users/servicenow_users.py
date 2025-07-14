@@ -181,7 +181,7 @@ class SaasPlugin(SaasPluginBase):
 
             error_detail = self.error_handling(response)
             if response.status_code == 403:
-                Log.error(f"Authorization failed: {error_detail}")
+                Log.error(f"Forbidden: {error_detail}")
                 raise SaasException(f"{error_detail}")
             else:
                 self.can_rollback = True
