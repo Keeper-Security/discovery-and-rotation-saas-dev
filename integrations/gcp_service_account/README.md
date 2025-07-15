@@ -21,16 +21,16 @@ You must have access to a GCP project with permission to create service accounts
 ## Steps to Set Up GCP for Service Account Key Rotation
 ### 1. Create a New Project or Use an Existing One
 - Go to the Google Cloud Console.
--From the top nav, click the Project Selector → New Project.
+- From the top nav, click the Project Selector → New Project.
 - Enter a project name, choose a billing account, and click Create.
 
 ### 2. Create a New Service Account
-- Navigate to: IAM & Admin → Service Accounts
-- Click + CREATE SERVICE ACCOUNT
+- Navigate to: **IAM & Admin** → **Service Accounts**
+- Click + **CREATE SERVICE ACCOUNT**
 - Enter a Service Account Name (e.g., keeper-rotator)
-- Click Create and Continue
+- Click **Create** and **Continue**
 
-### 3. Assign the IAM Role: Service Account Key Admin
+### 3. Assign the IAM Role: **Service Account Key Admin**
 - In the same wizard, under Grant this service account access, add:
 
       Role: IAM > Service Account Key Admin (roles/iam.serviceAccountKeyAdmin)
@@ -48,15 +48,11 @@ You must have access to a GCP project with permission to create service accounts
 ### 1. Create a New Keeper Login Record
 - Go to the Keeper Admin Console
 - Create a new Record of Type Login named GCP Authentication Record
-- Upload the downloaded service-account.json file as an Attachment
-
-### 2. Create a Keeper PAM User Record
-- Create a new PAM User record
-- In the login field, enter the email of the target GCP service account whose key you want to rotate
+- Upload the downloaded service_account.json file as an Attachment
 - Executing the Script for Rotating GCP Service Account Key
 - After setting up the Keeper records and GCP environment, run the following command in your Keeper Gateway environment:
       
-      plugin_test run -f <gcp_rotation_script.py> -u <created_pam_user_record> -c <uid_of_gcp_authentication_record>
+      plugin_test run -f <gcp_rotation_script.py> -u <uid_of_gcp_authentication_record> -c <uid_of_gcp_authentication_record>
 
 - The script will generate a new key and update the Keeper record.
 
