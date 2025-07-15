@@ -53,9 +53,25 @@ In order to use the post-rotation script, you will need the following prerequisi
 - To set a password for the new user, select the user and click **Set Password**.
 - If the user needs to reset their password after login, enable the **Password needs reset** option.
 
-> **Note** : To grant a user administrative privileges, assign them the admin role.
+### 3. Enhance the user admin role:
+- Navigate to System Definition → UI Actions.
 
-## 3. Create a PAM User Record 
+    <img src="images/ui_actions.png" width="350" alt="ui_actions">
+
+- Search for the "Set Password" UI action and open the corresponding record.
+
+    <img src="images/search_set_password.png" width="350" alt="search_set_password">
+
+- Ensure you have elevated your role (click "Elevate Roles" and select security_admin).
+
+    <img src="images/elevated_role.png" width="350" alt="elevated_role">
+
+- In the "Requires Role" field, insert a new row with the role user_admin.
+- Click Update to save the changes.
+
+The user_admin role now has permission to use the Set Password action.
+
+## 4. Create a PAM User Record 
 - Create a record of type **PAM User** inside the Keeper Vault.
 - Enter the username copied from the previous step.
 - This will create a record of type **PAM User**.
