@@ -1,4 +1,4 @@
-# User Guide | Keeper Security / GCP Service Now Key 
+# User Guide | Keeper Security / GCP Service Account Key 
 
 ## Overview
 
@@ -55,6 +55,7 @@ You must have access to a GCP project with permission to create service accounts
 - In the login field, enter the email of the target GCP service account whose key you want to rotate
 - Executing the Script for Rotating GCP Service Account Key
 - After setting up the Keeper records and GCP environment, run the following command in your Keeper Gateway environment:
+      
       plugin_test run -f <gcp_rotation_script.py> -u <created_pam_user_record> -c <uid_of_gcp_authentication_record>
 
 - The script will generate a new key and update the Keeper record.
