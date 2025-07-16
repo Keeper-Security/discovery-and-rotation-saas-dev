@@ -1,142 +1,99 @@
-# Elasticsearch User Plugin
+# User Guide | Keeper Security / Elasticsearch User
 
 ## Overview
 
-The Elasticsearch User Plugin enables password rotation for Elasticsearch users through Keeper's PAM (Privileged Access Management) system. This plugin connects to an Elasticsearch cluster using administrator credentials and rotates passwords for specified users.
+This user guide covers the post-rotation script for the Keeper Security / Elasticsearch User integration. 
+Details on how to use the post-rotation script are available at the 
+  [_Keeper Security online documentation_](https://github.com/Keeper-Security/discovery-and-rotation-saas-dev) and 
+  will not be repeated here.
 
-## Features
+## Elasticsearch
+[Elasticsearch](https://www.elastic.co/guide/en/elasticsearch/reference/current/what-is-elasticsearch.html) is a distributed, RESTful search and analytics engine capable of addressing a growing number of use cases. 
+It provides real-time search and analytics for all types of data including textual, numerical, geospatial, structured, and unstructured data.
+Elasticsearch's security features allow for user authentication and role-based access control to protect your data and cluster.
 
-- **Password Rotation**: Change passwords for Elasticsearch users
-- **Password Rollback**: Revert password changes if needed
-- **SSL Support**: Configurable SSL certificate verification
-- **Error Handling**: Comprehensive error handling and logging
-- **User Validation**: Verifies user existence before attempting password changes
+## Pre-requisites
+In order to use the post-rotation script, you will need the following prerequisites:
 
-## Prerequisites
+**1. Elasticsearch Library:** Ensure that the elasticsearch library is installed in your Python environment. This library is necessary for making API requests to Elasticsearch clusters.
 
-- Elasticsearch cluster with security features enabled
-- Administrator account with `manage_security` privilege
-- Python `elasticsearch` package (automatically installed via requirements)
+**2. Elasticsearch library installation:** The Elasticsearch library allows you to interact with Elasticsearch clusters easily. Activate a Python virtual environment in your Keeper Gateway environment and install the library using the following command:
 
-## Configuration
+    pip install elasticsearch
 
-The plugin requires the following configuration parameters:
+## Steps to Test Elasticsearch User Plugin
 
-### Required Fields
+### 1. Set Up Elasticsearch Environment
 
-| Field | Description |
-|-------|-------------|
-| **Admin Username** | Username of an administrator with permission to change user passwords |
-| **Admin Password** | Password for the Elasticsearch admin user |
-| **Elasticsearch URL** | The URL to the Elasticsearch server (e.g., `https://localhost:9200`) |
+#### Creating a User in Elasticsearch
+- To create a user in Elasticsearch, follow these steps:
+- Log in to the Elasticsearch Dashboard and navigate to **Stack Management**.
 
-### Optional Fields
+    <img src="images/stack_management.png" width="350" alt="stack_management">
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| **Verify SSL** | Whether to validate SSL certificates | `True` |
+- Under the **Security** section, click on **Users**.
+- Click on Create User and fill in the required details such as:
+    - **Username**
+    - **Email**
+    - **Password**
 
-## SSL Configuration
+         <img src="images/create_user_elastic.png" width="350" alt="create_user_elastic">
 
-The plugin supports two SSL verification modes:
+- (Optional) Assign one or more roles to the user if needed.
+- Click **Create** to finalize the user creation.
 
-- **True**: Validates SSL certificates (recommended for production)
-- **False**: Allows self-signed certificates (useful for development/testing)
+    <img src="images/created_user.png" width="350" alt="created_user">
 
-## Required Elasticsearch Permissions
+#### Creating an API Key
+- To create an API key in Elasticsearch:
+- Go to **Stack Management** → **Security** → **API Keys**.
 
-The admin user must have the following privileges:
+    <img src="images/security_page.png" width="350" alt="security_page">
 
-- `manage_security` - Required to change user passwords
-- `manage_users` - Required to verify user existence
+- Click the **Create API ke**y button.
+- Provide a name for the key and optionally set an expiration time in the Apply expiration field.
+- Click **Create API key**.
+- A new API key will be generated — copy and securely store it, as it will be needed to configure authentication in your application.
 
-## Usage
+    <img src="images/created_key.png" width="350" alt="created_key">
 
-1. **Create Configuration Record**: Set up a configuration record in Keeper with the required admin credentials and Elasticsearch URL
-2. **Create User Record**: Create a PAM user record for the Elasticsearch user whose password you want to rotate
-3. **Link Records**: Associate the user record with the configuration record
-4. **Execute Rotation**: Run the password rotation through Keeper's PAM system
 
-## Supported Operations
 
-### Password Change
-Changes the password for the specified Elasticsearch user using the `security.change_password` API.
+## Steps to Create Keeper Security Records and Elasticsearch Integration
 
-### Password Rollback
-Reverts the password to the previous value if the rotation needs to be undone.
+### 1. Create and Add Details in New Configuration Record of type Login:
+Store the configuration values in a Keeper Security record of type `Login` named as `Elasticsearch Configuration Record`:
 
-## Error Handling
+- Execute the following command to create config record in keeper vault:
+    ```bash
+    plugin_test config -f elasticsearch_user.py -t "Elasticsearch Configuration Record" -s "shared_folder_uid"
+    ```
 
-The plugin handles various error scenarios:
+    <img src="images/plugin_test.png" width="350" alt="plugin_test">
 
-- **Connection Errors**: Network connectivity issues
-- **Authentication Errors**: Invalid admin credentials
-- **User Not Found**: Target user doesn't exist in Elasticsearch
-- **Permission Errors**: Insufficient privileges
-- **SSL Errors**: Certificate validation failures
 
-## Logging
+### 2. Create and Add Details in New Rotation Record of type PAM User:
+- Create a record of type **PAM User** inside the Keeper Vault.
+- Enter the username copied from the previous step.
+- This will create a record of type **PAM User**. 
 
-The plugin provides detailed logging for:
+    <img src="images/created_pam_user.png" width="350" alt="created_pam_user">
 
-- Connection establishment
-- User validation
-- Password change operations
-- Error conditions
-- Rollback operations
 
-## Security Considerations
+## Executing the Script for Rotating Password
+Once you have your pre-requisites ready, make sure you cover the following:
 
-- Store admin credentials securely in Keeper vault
-- Use the principle of least privilege for admin accounts
-- Enable SSL verification in production environments
-- Monitor audit logs for password rotation activities
+- Execute the following command in your activated virtual environment:
 
-## Troubleshooting
+    ```bash
+    plugin_test run -f elasticsearch_user.py -u <pam_user_record_uid> -c <config_record_uid>
+    ```
 
-### Common Issues
+- The above command rotate the Elastic Search User Password
 
-**Connection Failed**
-- Verify the Elasticsearch URL is correct and accessible
-- Check network connectivity
-- Verify SSL settings match your Elasticsearch configuration
+    <img src="images/plugin_run.png" width="350" alt="plugin_run">
 
-**Authentication Failed**
-- Verify admin username and password are correct
-- Ensure the admin user has required permissions
 
-**User Not Found**
-- Verify the target username exists in Elasticsearch
-- Check for typos in the username
+- Keeper Vault PAM User Record is updated.
 
-**SSL Certificate Errors**
-- Set "Verify SSL" to "False" for self-signed certificates
-- Ensure proper SSL certificates are configured for production
-
-## API Reference
-
-The plugin uses the Elasticsearch Python client's security API:
-
-```python
-# Change password
-client.security.change_password(
-    username="target_user",
-    password="new_password"
-)
-
-# Get user (for validation)
-client.security.get_user(username="target_user")
-```
-
-## Version Compatibility
-
-- Elasticsearch 7.x and 8.x
-- Python 3.7+
-- elasticsearch-py client library
-
-## Support
-
-For issues and support:
-- Email: pam@keepersecurity.com
-- Check Elasticsearch server logs for additional error details
-- Verify network connectivity and permissions 
+    <img src="images/rotate_user_record.png" width="350" alt="rotate_user_record">
