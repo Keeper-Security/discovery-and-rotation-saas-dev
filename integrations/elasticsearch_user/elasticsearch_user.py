@@ -71,7 +71,7 @@ class SaasPlugin(SaasPluginBase):
                 desc="API Key for the Elasticsearch admin user.",
                 type="secret",
                 is_secret=True,
-                required=True
+                required=False
             ),
             SaasConfigItem(
                 id="verify_ssl",
