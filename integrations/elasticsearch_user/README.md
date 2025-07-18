@@ -44,14 +44,48 @@ In order to use the post-rotation script, you will need the following prerequisi
 
     <img src="images/created_user.png" width="350" alt="created_user">
 
+#### Role:
+To perform user management operations such as password rotation using an API key, the associated user or role must have appropriate permissions.
+- Under the **Security** section, click on **Roles**.
+
+    <img src="images/create_role.png" width="350" alt="create_role">
+
+- Click on **Create Role**.
+- Add the details of role like name and click **Create role**
+- Role is created, now attaching this role to api key.
+
 #### Creating an API Key
 - To create an API key in Elasticsearch:
 - Go to **Stack Management** → **Security** → **API Keys**.
 
     <img src="images/security_page.png" width="350" alt="security_page">
 
-- Click the **Create API ke**y button.
+- Click the **Create API key** button.
 - Provide a name for the key and optionally set an expiration time in the Apply expiration field.
+
+    <img src="images/create_api_key_1.png" width="350" alt="create_api_key_1">
+
+- Add the expiration date.
+- Select the **User API key** and attach the below policy. 
+    ```bash
+    {
+        "<role-name>": {
+            "cluster": [
+            "manage_security",
+            "manage"
+            ],
+            "indices": [],
+            "applications": [],
+            "run_as": [],
+            "metadata": {},
+            "transient_metadata": {
+            "enabled": true
+            }
+    }
+    ```
+
+    <img src="images/create_api_key_2.png" width="350" alt="create_api_key_2">
+
 - Click **Create API key**.
 - A new API key will be generated — copy and securely store it, as it will be needed to configure authentication in your application.
 
