@@ -127,7 +127,6 @@ class SaasPlugin(SaasPluginBase):
     @property
     def cert_content(self) -> str:
         """Get the certificate content for the Elasticsearch client."""
-        Log.debug(f"Cert content: {self.get_config('ssl_content')}")
         return self.get_config("ssl_content")
 
     @property
