@@ -1,7 +1,7 @@
-"""Elasticsearch User Password Rotation Plugin."""
 from __future__ import annotations
 
 import ssl
+import traceback
 from typing import List, TYPE_CHECKING
 
 from elasticsearch import Elasticsearch
@@ -22,6 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
 
+API_TIMEOUT = 30
 
 class SaasPlugin(SaasPluginBase):
     """Elasticsearch User Password Rotation Plugin."""
@@ -100,8 +101,34 @@ class SaasPlugin(SaasPluginBase):
                         )
                     ),
                 ]
+            ),
+            SaasConfigItem(
+                id="ssl_content",
+                label="SSL Certificate Content",
+                desc=(
+                    "CA certificate content (.crt format). "
+                    "Only required when 'Verify SSL' is set to 'True' "
+                    "and using custom certificates."
+                ),
+                type="multiline",
+                is_secret=True,
+                required=False
             )
         ]
+
+    @property
+    def verify_ssl(self) -> bool:
+        """Get the API key for the Elasticsearch client."""
+        verify_ssl_value = self.get_config("verify_ssl")
+        if verify_ssl_value == "False" or verify_ssl_value is False or verify_ssl_value is None or verify_ssl_value == "":
+            return False
+        return True
+
+    @property
+    def cert_content(self) -> str:
+        """Get the certificate content for the Elasticsearch client."""
+        Log.debug(f"Cert content: {self.get_config('ssl_content')}")
+        return self.get_config("ssl_content")
 
     @property
     def client(self) -> Elasticsearch:
@@ -109,23 +136,19 @@ class SaasPlugin(SaasPluginBase):
         if self._client is None:
             Log.debug("Creating Elasticsearch client")
             elasticsearch_url = self.get_config("elasticsearch_url")
-            is_https = elasticsearch_url.lower().startswith('https://')
 
             client_config = {
                 "hosts": [elasticsearch_url],
                 "api_key": self.get_config("api_key"),
-                "request_timeout": 30
+                "request_timeout": API_TIMEOUT,
+                "verify_certs": self.verify_ssl,
             }
 
-            if is_https:
-                verify_ssl = self.get_config("verify_ssl")
-                if verify_ssl == "False":
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.check_hostname = False
-                    ssl_context.verify_mode = ssl.CERT_NONE
+            if self.verify_ssl:
+                cert_content = self.cert_content
+                if cert_content and cert_content.strip():
+                    ssl_context = ssl.create_default_context(cadata=cert_content)
                     client_config["ssl_context"] = ssl_context
-
-                client_config["verify_certs"] = (verify_ssl == "True")
 
             try:
                 self._client = Elasticsearch(**client_config)
@@ -136,19 +159,19 @@ class SaasPlugin(SaasPluginBase):
                 Log.debug("Successfully connected to Elasticsearch")
 
             except ESConnectionError as e:
-                Log.error(f"Failed to connect to Elasticsearch: {e}")
+                Log.error(f"Failed to connect to Elasticsearch: \n{traceback.format_exc()}")
                 raise SaasException(f"Connection failed: {e}") from e
             except AuthenticationException as e:
-                Log.error(f"Authentication failed: {e}")
+                Log.error(f"Authentication failed: \n{traceback.format_exc()}")
                 raise SaasException(
                     "Authentication failed. Check admin credentials."
                 ) from e
             except Exception as e:
                 Log.error(
-                    f"Unexpected error creating Elasticsearch client: {e}"
+                    f"Unexpected error creating Elasticsearch client: \n{traceback.format_exc()}"
                 )
                 raise SaasException(
-                    f"Failed to create Elasticsearch client: {e}"
+                    f"Failed to create Elasticsearch client: \n{traceback.format_exc()}"
                 ) from e
 
         return self._client
@@ -171,7 +194,7 @@ class SaasPlugin(SaasPluginBase):
             self.can_rollback = True
 
         except AuthorizationException as e:
-            Log.error(f"Authorization failed when changing password: {e}")
+            Log.error(f"Authorization failed when changing password: \n{traceback.format_exc()}")
             raise SaasException(f"Authorization failed: {e}") from e
         except NotFoundError as e:
             Log.error(
@@ -182,7 +205,7 @@ class SaasPlugin(SaasPluginBase):
                 f"in Elasticsearch"
             ) from e
         except Exception as e:
-            Log.error(f"Error verifying user existence: {e}")
+            Log.error(f"Error verifying user existence: \n{traceback.format_exc()}")
             raise SaasException(
                 f"Failed to verify user existence: {e}"
             ) from e
@@ -201,16 +224,16 @@ class SaasPlugin(SaasPluginBase):
             Log.info(f"Password changed successfully for user: {username}")
 
         except AuthorizationException as e:
-            Log.error(f"Authorization failed when changing password: {e}")
+            Log.error(f"Authorization failed when changing password: \n{traceback.format_exc()}")
             raise SaasException(f"Authorization failed: {e}") from e
         except RequestError as e:
             self.can_rollback = True
-            Log.error(f"Invalid request when changing password: {e}")
+            Log.error(f"Invalid request when changing password: \n{traceback.format_exc()}")
             raise SaasException(
                 f"Invalid password change request: {e}"
             ) from e
         except Exception as e:
-            Log.error(f"Unexpected error changing password: {e}")
+            Log.error(f"Unexpected error changing password: \n{traceback.format_exc()}")
             raise SaasException(f"Failed to change password: {e}") from e
 
     def change_password(self):

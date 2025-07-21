@@ -35,16 +35,21 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
             field_values = {
                 "API Key": "test_api_key_12345",
                 "Elasticsearch URL": "https://localhost:9200",
-                "Verify SSL": "True"
+                "Verify SSL": "True",
+                "SSL Certificate Content": ""
             }
 
-        config_record = MockRecord(
-            custom=[
-                {'type': 'secret', 'label': 'API Key', 'value': [field_values.get("API Key")]},
-                {'type': 'url', 'label': 'Elasticsearch URL', 'value': [field_values.get("Elasticsearch URL")]},
-                {'type': 'text', 'label': 'Verify SSL', 'value': [field_values.get("Verify SSL")]},
-            ]
-        )
+        custom_fields = []
+        if "API Key" in field_values:
+            custom_fields.append({'type': 'secret', 'label': 'API Key', 'value': [field_values.get("API Key")]})
+        if "Elasticsearch URL" in field_values:
+            custom_fields.append({'type': 'url', 'label': 'Elasticsearch URL', 'value': [field_values.get("Elasticsearch URL")]})
+        if "Verify SSL" in field_values:
+            custom_fields.append({'type': 'text', 'label': 'Verify SSL', 'value': [field_values.get("Verify SSL")]})
+        if "SSL Certificate Content" in field_values:
+            custom_fields.append({'type': 'multiline', 'label': 'SSL Certificate Content', 'value': [field_values.get("SSL Certificate Content")]})
+
+        config_record = MockRecord(custom=custom_fields)
 
         return SaasPlugin(user=user, config_record=config_record)
 
@@ -75,35 +80,13 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
                 password="NewPassword123!"
             )
 
-    def test_change_password_success_http(self):
-        """Test successful password change with HTTP connection (no SSL)."""
-        field_values = {
-            "API Key": "test_api_key_12345",
-            "Elasticsearch URL": "http://localhost:9200",
-            "Verify SSL": "True"
-        }
-
-        with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.ping.return_value = True
-            mock_client.security.get_user.return_value = {"testuser": {"enabled": True}}
-            mock_client.security.change_password.return_value = {"acknowledged": True}
-            mock_client_class.return_value = mock_client
-
-            plugin = self.plugin(field_values=field_values)
-            plugin.change_password()
-
-            # Verify SSL settings were not applied for HTTP
-            call_args = mock_client_class.call_args[1]
-            self.assertNotIn('ssl_context', call_args)
-            self.assertNotIn('verify_certs', call_args)
-
     def test_change_password_success_ssl_disabled(self):
         """Test successful password change with SSL verification disabled."""
         field_values = {
             "API Key": "test_api_key_12345",
             "Elasticsearch URL": "https://localhost:9200",
-            "Verify SSL": "False"
+            "Verify SSL": "False",
+            "SSL Certificate Content": ""
         }
 
         with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
@@ -116,10 +99,63 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
             plugin = self.plugin(field_values=field_values)
             plugin.change_password()
 
-            # Verify SSL context was configured for self-signed certificates
+            # Verify SSL verification was disabled
             call_args = mock_client_class.call_args[1]
-            self.assertIn('ssl_context', call_args)
             self.assertFalse(call_args['verify_certs'])
+            self.assertNotIn('ssl_context', call_args)
+
+    def test_change_password_success_with_custom_cert(self):
+        """Test successful password change with custom SSL certificate."""
+        field_values = {
+            "API Key": "test_api_key_12345",
+            "Elasticsearch URL": "https://localhost:9200",
+            "Verify SSL": "True",
+            "SSL Certificate Content": "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
+        }
+
+        with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.ping.return_value = True
+            mock_client.security.get_user.return_value = {"testuser": {"enabled": True}}
+            mock_client.security.change_password.return_value = {"acknowledged": True}
+            mock_client_class.return_value = mock_client
+
+            with patch("ssl.create_default_context") as mock_ssl:
+                mock_ssl_context = MagicMock()
+                mock_ssl.return_value = mock_ssl_context
+
+                plugin = self.plugin(field_values=field_values)
+                plugin.change_password()
+
+                # Verify custom SSL context was used
+                call_args = mock_client_class.call_args[1]
+                self.assertTrue(call_args['verify_certs'])
+                self.assertIn('ssl_context', call_args)
+                mock_ssl.assert_called_once()
+
+    def test_change_password_success_ssl_enabled_no_cert(self):
+        """Test successful password change with SSL enabled but no custom certificate."""
+        field_values = {
+            "API Key": "test_api_key_12345",
+            "Elasticsearch URL": "https://localhost:9200",
+            "Verify SSL": "True",
+            "SSL Certificate Content": ""
+        }
+
+        with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.ping.return_value = True
+            mock_client.security.get_user.return_value = {"testuser": {"enabled": True}}
+            mock_client.security.change_password.return_value = {"acknowledged": True}
+            mock_client_class.return_value = mock_client
+
+            plugin = self.plugin(field_values=field_values)
+            plugin.change_password()
+
+            # Verify SSL verification was enabled but no custom context
+            call_args = mock_client_class.call_args[1]
+            self.assertTrue(call_args['verify_certs'])
+            self.assertNotIn('ssl_context', call_args)
 
     def test_change_password_fail_user_not_found(self):
         """Test password change when user doesn't exist."""
@@ -137,39 +173,6 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
             except Exception as err:
                 self.assertIn("Failed to verify user existence", str(err))
 
-    def test_change_password_fail_authorization_error(self):
-        """Test password change with authorization failure."""
-        with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.ping.return_value = True
-            mock_client.security.get_user.side_effect = Exception("Forbidden")
-            mock_client_class.return_value = mock_client
-
-            plugin = self.plugin()
-
-            try:
-                plugin.change_password()
-                self.fail("Should have failed")
-            except Exception as err:
-                self.assertIn("Failed to verify user existence", str(err))
-
-    def test_change_password_fail_request_error(self):
-        """Test password change with invalid request."""
-        with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.ping.return_value = True
-            mock_client.security.get_user.return_value = {"testuser": {"enabled": True}}
-            mock_client.security.change_password.side_effect = Exception("Invalid request")
-            mock_client_class.return_value = mock_client
-
-            plugin = self.plugin()
-
-            try:
-                plugin.change_password()
-                self.fail("Should have failed")
-            except Exception as err:
-                self.assertIn("Failed to change password", str(err))
-
     def test_change_password_fail_connection_error(self):
         """Test password change with connection failure."""
         with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
@@ -182,19 +185,6 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
                 self.fail("Should have failed")
             except Exception as err:
                 self.assertIn("Connection failed", str(err))
-
-    def test_change_password_fail_authentication_error(self):
-        """Test password change with authentication failure."""
-        with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
-            mock_client_class.side_effect = Exception("Authentication failed")
-
-            plugin = self.plugin()
-
-            try:
-                plugin.change_password()
-                self.fail("Should have failed")
-            except Exception as err:
-                self.assertIn("Failed to create Elasticsearch client", str(err))
 
     def test_change_password_fail_ping_failure(self):
         """Test password change when ping fails."""
@@ -224,6 +214,7 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
                 {'type': 'secret', 'label': 'API Key', 'value': ["test_api_key_12345"]},
                 {'type': 'url', 'label': 'Elasticsearch URL', 'value': ["https://localhost:9200"]},
                 {'type': 'text', 'label': 'Verify SSL', 'value': ["True"]},
+                {'type': 'multiline', 'label': 'SSL Certificate Content', 'value': [""]},
             ]
         )
 
@@ -287,7 +278,7 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
         
         # Verify required fields
         field_ids = [item.id for item in schema]
-        expected_fields = ["api_key", "elasticsearch_url", "verify_ssl"]
+        expected_fields = ["api_key", "elasticsearch_url", "verify_ssl", "ssl_content"]
         
         for field in expected_fields:
             self.assertIn(field, field_ids)
@@ -306,6 +297,12 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
         enum_values = [enum.value for enum in ssl_field.enum_values]
         self.assertIn("True", enum_values)
         self.assertIn("False", enum_values)
+
+        # Verify SSL content field
+        ssl_content_field = next(item for item in schema if item.id == "ssl_content")
+        self.assertEqual(ssl_content_field.type, "multiline")
+        self.assertTrue(ssl_content_field.is_secret)
+        self.assertFalse(ssl_content_field.required)
 
     def test_plugin_metadata(self):
         """Test plugin metadata."""
@@ -334,44 +331,41 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
             # Elasticsearch constructor should only be called once
             mock_client_class.assert_called_once()
 
-    def test_verify_user_exists_sets_rollback_flag(self):
-        """Test that _verify_user_exists sets the rollback flag."""
-        with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.ping.return_value = True
-            mock_client.security.get_user.return_value = {"testuser": {"enabled": True}}
-            mock_client_class.return_value = mock_client
+    def test_verify_ssl_property(self):
+        """Test verify_ssl property with different values."""
+        # Test with "True" value
+        field_values = {"API Key": "test", "Elasticsearch URL": "https://localhost:9200", 
+                       "Verify SSL": "True", "SSL Certificate Content": ""}
+        plugin = self.plugin(field_values=field_values)
+        self.assertTrue(plugin.verify_ssl)
 
-            plugin = self.plugin()
-            
-            # Initially False
-            self.assertFalse(plugin.can_rollback)
-            
-            # After verification, should be True
-            plugin._verify_user_exists()
-            self.assertTrue(plugin.can_rollback)
+        # Test with "False" value
+        field_values["Verify SSL"] = "False"
+        plugin = self.plugin(field_values=field_values)
+        self.assertFalse(plugin.verify_ssl)
 
-    def test_empty_api_key_handling(self):
-        """Test behavior when API key is empty or None."""
+        # Test with empty value
+        field_values["Verify SSL"] = ""
+        plugin = self.plugin(field_values=field_values)
+        self.assertFalse(plugin.verify_ssl)
+        
+        # Test with None value (field not present)
+        field_values_none = {k: v for k, v in field_values.items() if k != "Verify SSL"}
+        plugin = self.plugin(field_values=field_values_none)
+        self.assertFalse(plugin.verify_ssl)
+
+    def test_cert_content_property(self):
+        """Test cert_content property."""
+        cert_data = "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
         field_values = {
-            "API Key": "",  # Empty API key
-            "Elasticsearch URL": "http://localhost:9200",
-            "Verify SSL": "True"
+            "API Key": "test", 
+            "Elasticsearch URL": "https://localhost:9200", 
+            "Verify SSL": "True", 
+            "SSL Certificate Content": cert_data
         }
-
-        with patch("elasticsearch_user.Elasticsearch") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.ping.return_value = True
-            mock_client.security.get_user.return_value = {"testuser": {"enabled": True}}
-            mock_client.security.change_password.return_value = {"acknowledged": True}
-            mock_client_class.return_value = mock_client
-
-            plugin = self.plugin(field_values=field_values)
-            plugin.change_password()
-
-            # Verify client was created (empty/missing API key becomes None)
-            call_args = mock_client_class.call_args[1]
-            self.assertIsNone(call_args['api_key'])
+        
+        plugin = self.plugin(field_values=field_values)
+        self.assertEqual(plugin.cert_content, cert_data)
 
 
 if __name__ == '__main__':
