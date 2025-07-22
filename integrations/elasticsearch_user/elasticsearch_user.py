@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ssl
-import traceback
 from typing import List, TYPE_CHECKING
 
 from elasticsearch import Elasticsearch
@@ -118,11 +117,9 @@ class SaasPlugin(SaasPluginBase):
 
     @property
     def verify_ssl(self) -> bool:
-        """Get the API key for the Elasticsearch client."""
+        """Verify SSL for the Elasticsearch client."""
         verify_ssl_value = self.get_config("verify_ssl")
-        if verify_ssl_value == "False" or verify_ssl_value is False or verify_ssl_value is None or verify_ssl_value == "":
-            return False
-        return True
+        return str(verify_ssl_value) == "True"
 
     @property
     def cert_content(self) -> str:
@@ -146,8 +143,12 @@ class SaasPlugin(SaasPluginBase):
             if self.verify_ssl:
                 cert_content = self.cert_content
                 if cert_content and cert_content.strip():
-                    ssl_context = ssl.create_default_context(cadata=cert_content)
-                    client_config["ssl_context"] = ssl_context
+                    try:
+                        ssl_context = ssl.create_default_context(cadata=cert_content)
+                        client_config["ssl_context"] = ssl_context
+                    except ssl.SSLError as e:
+                        Log.error(f"Invalid SSL certificate content: {e}")
+                        raise SaasException(f"Invalid SSL certificate: {e}") from e
 
             try:
                 self._client = Elasticsearch(**client_config)
@@ -158,19 +159,19 @@ class SaasPlugin(SaasPluginBase):
                 Log.debug("Successfully connected to Elasticsearch")
 
             except ESConnectionError as e:
-                Log.error(f"Failed to connect to Elasticsearch: \n{traceback.format_exc()}")
+                Log.error(f"Failed to connect to Elasticsearch: {e}")
                 raise SaasException(f"Connection failed: {e}") from e
             except AuthenticationException as e:
-                Log.error(f"Authentication failed: \n{traceback.format_exc()}")
+                Log.error(f"Authentication failed: {e}")
                 raise SaasException(
                     "Authentication failed. Check admin credentials."
                 ) from e
             except Exception as e:
                 Log.error(
-                    f"Unexpected error creating Elasticsearch client: \n{traceback.format_exc()}"
+                    f"Unexpected error creating Elasticsearch client: {e}"
                 )
                 raise SaasException(
-                    f"Failed to create Elasticsearch client: \n{traceback.format_exc()}"
+                    f"Failed to create Elasticsearch client: {e}"
                 ) from e
 
         return self._client
@@ -193,7 +194,7 @@ class SaasPlugin(SaasPluginBase):
             self.can_rollback = True
 
         except AuthorizationException as e:
-            Log.error(f"Authorization failed when changing password: \n{traceback.format_exc()}")
+            Log.error(f"Authorization failed when changing password: {e}")
             raise SaasException(f"Authorization failed: {e}") from e
         except NotFoundError as e:
             Log.error(
@@ -204,7 +205,7 @@ class SaasPlugin(SaasPluginBase):
                 f"in Elasticsearch"
             ) from e
         except Exception as e:
-            Log.error(f"Error verifying user existence: \n{traceback.format_exc()}")
+            Log.error(f"Error verifying user existence: {e}")
             raise SaasException(
                 f"Failed to verify user existence: {e}"
             ) from e
@@ -221,18 +222,20 @@ class SaasPlugin(SaasPluginBase):
                 password=password.value
             )
             Log.info(f"Password changed successfully for user: {username}")
-
+            self.client.close()
+            self._client = None
         except AuthorizationException as e:
-            Log.error(f"Authorization failed when changing password: \n{traceback.format_exc()}")
+            Log.error(f"Authorization failed when changing password: {e}")
             raise SaasException(f"Authorization failed: {e}") from e
         except RequestError as e:
-            self.can_rollback = True
-            Log.error(f"Invalid request when changing password: \n{traceback.format_exc()}")
+            self._can_rollback = True
+            Log.error(f"Invalid request when changing password: {e}")
             raise SaasException(
                 f"Invalid password change request: {e}"
             ) from e
         except Exception as e:
-            Log.error(f"Unexpected error changing password: \n{traceback.format_exc()}")
+            self._can_rollback = True
+            Log.error(f"Unexpected error changing password: {e}")
             raise SaasException(f"Failed to change password: {e}") from e
 
     def change_password(self):
