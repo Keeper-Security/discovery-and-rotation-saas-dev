@@ -23,7 +23,7 @@ class SaasPlugin(SaasPluginBase):
 
     name = "Elasticsearch Service Account Token"
     summary = "Create service account tokens in Elasticsearch for authentication."
-    readme = "README.md"
+    readme = "README_elasticsearch_serviceaccount_token.md"
     author = "Keeper Security"
     email = "pam@keepersecurity.com"
 
