@@ -66,13 +66,6 @@ class SaasPlugin(SaasPluginBase):
                 required=True
             ),
             SaasConfigItem(
-                id="token_name",
-                label="Token Name",
-                desc="The name of the service account token.",
-                required=True,
-                default_value="elastic"
-            ),
-            SaasConfigItem(
                 id="verify_ssl",
                 label="Verify SSL",
                 desc=(
@@ -162,6 +155,26 @@ class SaasPlugin(SaasPluginBase):
                 code="invalid_token_name"
             )
 
+    def _get_token_name(self) -> str:
+        """Get the token name from the user fields."""
+        fields = self.user.fields
+        token_name = None
+        for field in fields:
+            if field.label == "Token Name":
+                value = field.values[0] if field.values else None
+                if isinstance(value, list):
+                    token_name = value[0] if value else None
+                else:
+                    token_name = value
+                break
+
+        if not token_name:
+            raise SaasException(
+                "Token name is required",
+                code="token_name_required"
+            )
+        return token_name
+
     def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
         """Create SSL context if custom certificate is provided."""
         if not self.verify_ssl:
@@ -170,7 +183,7 @@ class SaasPlugin(SaasPluginBase):
         cert_content = self.get_config("ssl_content")
         if not cert_content or not cert_content.strip():
             return None
-            
+
         try:
             return ssl.create_default_context(cadata=cert_content.strip())
         except ssl.SSLError as e:
@@ -219,8 +232,7 @@ class SaasPlugin(SaasPluginBase):
         """
         namespace = self.get_config("namespace")
         service = self.get_config("service")
-        token_name = self.get_config("token_name")
-
+        token_name = self._get_token_name()
         self._validate_token_name(token_name)
         Log.info(f"Creating service account token '{token_name}' for {namespace}/{service}")
         try:
@@ -256,6 +268,27 @@ class SaasPlugin(SaasPluginBase):
                 code="elasticsearch_error"
             ) from e
 
+    def _delete_service_token(self) -> None:
+        """Delete a service account token using the Elasticsearch SDK."""
+        namespace = self.get_config("namespace")
+        service = self.get_config("service")
+        token_name = self._get_token_name()
+        Log.info(f"Deleting service account token '{token_name}' for {namespace}/{service}")
+        try:
+            self.client.security.delete_service_token(
+                namespace=namespace,
+                service=service,
+                name=token_name
+            )
+            Log.info(f"Successfully deleted service account token '{token_name}'")
+        except Exception as e:
+            error_msg = str(e)
+            Log.error(f"Elasticsearch error deleting service account token: {error_msg}")
+            raise SaasException(
+                f"Failed to delete service account token: {error_msg}",
+                code="elasticsearch_error"
+            ) from e
+
     def _extract_token_info(self, result: dict) -> tuple[str, str]:
         """Extract token name and value from API response."""
         token_info = result.get("token")
@@ -279,6 +312,7 @@ class SaasPlugin(SaasPluginBase):
         self.add_return_field(
             ReturnCustomField(
                 label="Service Account Token",
+                type="secret",
                 value=Secret(token_value)
             )
         )
@@ -307,6 +341,7 @@ class SaasPlugin(SaasPluginBase):
         Log.info("Starting creation of Elasticsearch service account token")
 
         try:
+            self._delete_service_token()
             result = self._create_service_token()
             token_name, token_value = self._extract_token_info(result)
             self._add_return_fields(token_name, token_value)
