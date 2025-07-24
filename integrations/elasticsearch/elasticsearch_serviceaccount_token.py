@@ -160,7 +160,7 @@ class SaasPlugin(SaasPluginBase):
         fields = self.user.fields
         token_name = None
         for field in fields:
-            if field.label == "Token Name":
+            if field.label == "token_name":
                 value = field.values[0] if field.values else None
                 if isinstance(value, list):
                     token_name = value[0] if value else None
@@ -217,6 +217,11 @@ class SaasPlugin(SaasPluginBase):
                 self._client.ping()
                 Log.debug("Successfully connected to Elasticsearch")
 
+            except AuthenticationException as ae:
+                raise SaasException(
+                    "Authentication failed. Verify API key is correct",
+                    code="authentication_failed"
+                ) from ae
             except Exception as e:
                 Log.error(f"Failed to connect to Elasticsearch: {e}")
                 raise SaasException(
@@ -245,11 +250,6 @@ class SaasPlugin(SaasPluginBase):
             Log.info(f"Successfully created service account token '{token_name}'")
             return response
 
-        except AuthenticationException as ae:
-            raise SaasException(
-                "Authentication failed. Verify API key has 'manage_service_account' cluster privilege",
-                code="authentication_failed"
-            ) from ae
         except ConflictError as ce:
             raise SaasException(
                 f"Service account token '{token_name}' already exists",
@@ -260,6 +260,11 @@ class SaasPlugin(SaasPluginBase):
                 f"Service account '{namespace}/{service}' not found",
                 code="service_account_not_found"
             ) from ne
+        except AuthenticationException as ae:
+            raise SaasException(
+                "Authentication failed. Verify API key is correct",
+                code="authentication_failed"
+            ) from ae
         except Exception as e:
             error_msg = str(e)
             Log.error(f"Elasticsearch error creating service account token: {error_msg}")
@@ -274,20 +279,13 @@ class SaasPlugin(SaasPluginBase):
         service = self.get_config("service")
         token_name = self._get_token_name()
         Log.info(f"Deleting service account token '{token_name}' for {namespace}/{service}")
-        try:
-            self.client.security.delete_service_token(
-                namespace=namespace,
-                service=service,
-                name=token_name
-            )
-            Log.info(f"Successfully deleted service account token '{token_name}'")
-        except Exception as e:
-            error_msg = str(e)
-            Log.error(f"Elasticsearch error deleting service account token: {error_msg}")
-            raise SaasException(
-                f"Failed to delete service account token: {error_msg}",
-                code="elasticsearch_error"
-            ) from e
+        self.client.security.delete_service_token(
+            namespace=namespace,
+            service=service,
+            name=token_name
+        )
+        Log.info(f"Successfully deleted service account token '{token_name}'")
+    
 
     def _extract_token_info(self, result: dict) -> tuple[str, str]:
         """Extract token name and value from API response."""
@@ -339,9 +337,11 @@ class SaasPlugin(SaasPluginBase):
         Create a new service account token.
         """
         Log.info("Starting creation of Elasticsearch service account token")
-
         try:
             self._delete_service_token()
+        except NotFoundError:
+            Log.info("Service account token not found, creating new one")
+        try:
             result = self._create_service_token()
             token_name, token_value = self._extract_token_info(result)
             self._add_return_fields(token_name, token_value)

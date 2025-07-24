@@ -93,9 +93,6 @@ Service accounts in Elasticsearch are defined by a namespace and service combina
 - Click **Create API key**.
 - A new API key will be generated — copy as it will be needed for the plugin configuration.
 
-    <img src="images_serviceaccount/created_service_key.png" width="350" alt="created_service_key">
-
-
 Common service accounts that typically exist:
 - `elastic/fleet-server`
 - `elastic/kibana`

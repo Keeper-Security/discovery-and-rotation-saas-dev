@@ -5,7 +5,7 @@ import elasticsearch_serviceaccount_token
 SaasPlugin = elasticsearch_serviceaccount_token.SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
-from kdnrm.saas_type import SaasUser
+from kdnrm.saas_type import SaasUser, Field
 from kdnrm.exceptions import SaasException
 from elasticsearch.exceptions import ConflictError, NotFoundError, AuthenticationException
 from plugin_dev.test_base import MockRecord
@@ -27,29 +27,52 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
             'api_key': 'test_api_key',
             'namespace': 'elastic',
             'service': 'fleet-server',
-            'token_name': 'test-token',
             'verify_ssl': 'False',
             'ssl_content': ''
         }
+        
+        # Default token name for user fields
+        self.default_token_name = 'test-token'
 
     def create_plugin(self, config_overrides: Optional[Dict[str, str]] = None, 
-                     prior_password: Optional[Secret] = None) -> SaasPlugin:
+                     prior_password: Optional[Secret] = None,
+                     token_name: Optional[str] = "DEFAULT") -> SaasPlugin:
         """
         Create a SaasPlugin instance with test configuration.
         
         Args:
             config_overrides: Override default config values
             prior_password: Prior password for user
+            token_name: Token name for user fields
             
         Returns:
             Configured SaasPlugin instance
         """
         config = {**self.default_config, **(config_overrides or {})}
         
+        # Create user fields with token_name
+        user_fields = []
+        if token_name == "DEFAULT":
+            # Use default token name
+            user_fields.append(Field(
+                type="text",
+                label="token_name",
+                values=[self.default_token_name]
+            ))
+        elif token_name is not None:
+            # Use provided token name
+            user_fields.append(Field(
+                type="text",
+                label="token_name",
+                values=[token_name]
+            ))
+        # If token_name is None, don't create any fields
+        
         user = SaasUser(
             username=Secret("test-user"),
             new_password=Secret("dummy-password-not-used"),
-            prior_password=prior_password or Secret("old-dummy-password")
+            prior_password=prior_password or Secret("old-dummy-password"),
+            fields=user_fields
         )
 
         config_record = MockRecord(
@@ -58,7 +81,6 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
                 {'type': 'secret', 'label': 'API Key', 'value': [config['api_key']]},
                 {'type': 'text', 'label': 'Service Account Namespace', 'value': [config['namespace']]},
                 {'type': 'text', 'label': 'Service Account Service', 'value': [config['service']]},
-                {'type': 'text', 'label': 'Token Name', 'value': [config['token_name']]},
                 {'type': 'text', 'label': 'Verify SSL', 'value': [config['verify_ssl']]},
                 {'type': 'multiline', 'label': 'SSL Certificate Content', 'value': [config['ssl_content']]},
             ]
@@ -115,14 +137,14 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
         """Test configuration schema structure and field definitions."""
         schema = SaasPlugin.config_schema()
         
-        # Verify schema size and required fields
-        self.assertEqual(7, len(schema))  # Updated count to include token_name
+        # Verify schema size and required fields (token_name is in user fields, not config)
+        self.assertEqual(6, len(schema))
         required_fields = [item for item in schema if item.required]
         self.assertEqual(4, len(required_fields))
         
         # Verify all expected field IDs are present
         field_ids = {item.id for item in schema}
-        expected_ids = {"elasticsearch_url", "api_key", "namespace", "service", "token_name", "verify_ssl", "ssl_content"}
+        expected_ids = {"elasticsearch_url", "api_key", "namespace", "service", "verify_ssl", "ssl_content"}
         self.assertEqual(expected_ids, field_ids)
         
         # Verify specific field configurations
@@ -288,11 +310,10 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
         
         custom_config = {
             'namespace': 'custom',
-            'service': 'my-service',
-            'token_name': 'custom-token'
+            'service': 'my-service'
         }
         
-        plugin = self.create_plugin(custom_config)
+        plugin = self.create_plugin(custom_config, token_name='custom-token')
         plugin.change_password()
         
         mock_client.security.create_service_token.assert_called_once_with(
@@ -356,26 +377,38 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
             'api_key': 'custom_api_key',
             'namespace': 'custom',
             'service': 'my-service',
-            'token_name': 'my-token',
             'verify_ssl': 'True'
         }
         
-        plugin = self.create_plugin(config_overrides)
+        plugin = self.create_plugin(config_overrides, token_name='my-token')
         
         # Verify configuration retrieval
         self.assertEqual("https://es.example.com:9200", plugin.get_config("elasticsearch_url"))
         self.assertEqual("custom_api_key", plugin.get_config("api_key"))
         self.assertEqual("custom", plugin.get_config("namespace"))
         self.assertEqual("my-service", plugin.get_config("service"))
-        self.assertEqual("my-token", plugin.get_config("token_name"))
         self.assertEqual("True", plugin.get_config("verify_ssl"))
         self.assertTrue(plugin.verify_ssl)
+        
+        # Verify token name retrieval from user fields
+        token_name = plugin._get_token_name()
+        self.assertEqual("my-token", token_name)
 
     def test_rollback_behavior(self):
         """Test rollback behavior (should do nothing gracefully)."""
         plugin = self.create_plugin()
         # Should not raise any exception
         plugin.rollback_password()
+        
+    def test_token_name_required_error(self):
+        """Test error when token_name is not provided in user fields."""
+        plugin = self.create_plugin(token_name=None)  # No token name in user fields
+        
+        with self.assertRaises(SaasException) as context:
+            plugin._get_token_name()
+        
+        self.assertEqual("token_name_required", context.exception.codes[0]["code"])
+        self.assertIn("Token name is required", str(context.exception))
 
     # ==================== Edge Cases ====================
 

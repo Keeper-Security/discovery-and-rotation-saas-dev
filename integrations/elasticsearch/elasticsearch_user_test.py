@@ -308,7 +308,7 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
         """Test plugin metadata."""
         self.assertEqual(SaasPlugin.name, "Elasticsearch User")
         self.assertEqual(SaasPlugin.summary, "Change a user password in Elasticsearch.")
-        self.assertEqual(SaasPlugin.readme, "README.md")
+        self.assertEqual(SaasPlugin.readme, "README_elasticsearch_user.md")
         self.assertEqual(SaasPlugin.author, "Keeper Security")
         self.assertEqual(SaasPlugin.email, "pam@keepersecurity.com")
 
