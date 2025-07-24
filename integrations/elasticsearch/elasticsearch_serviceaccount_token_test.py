@@ -120,8 +120,6 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
             ssl_context=expected_config.get('ssl_context')
         )
 
-    # ==================== Basic Plugin Tests ====================
-
     def test_plugin_metadata(self):
         """Test plugin basic metadata and requirements."""
         # Test requirements
@@ -151,8 +149,6 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
         api_key_field = next(item for item in schema if item.id == "api_key")
         self.assertTrue(api_key_field.is_secret)
         self.assertTrue(api_key_field.required)
-
-    # ==================== Validation Tests ====================
 
     def test_url_validation_success_cases(self):
         """Test URL validation with valid URLs."""
@@ -321,8 +317,6 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
             service="my-service",
             name="custom-token"
         )
-
-    # ==================== Error Handling Tests ====================
 
     @patch('elasticsearch_serviceaccount_token.Elasticsearch')
     def test_elasticsearch_error_scenarios(self, mock_elasticsearch):

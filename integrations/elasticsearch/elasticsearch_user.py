@@ -72,7 +72,7 @@ class SaasPlugin(SaasPluginBase):
                 desc="API Key for the Elasticsearch admin user.",
                 type="secret",
                 is_secret=True,
-                required=False
+                required=True
             ),
             SaasConfigItem(
                 id="verify_ssl",
@@ -157,7 +157,7 @@ class SaasPlugin(SaasPluginBase):
                 if cert_content and cert_content.strip():
                     try:
                         ssl_context = ssl.create_default_context(cadata=cert_content)
-                        client_config["ssl_context"] = ssl_context
+                        client_config["ssl_context"] = cert_content
                     except ssl.SSLError as e:
                         Log.error(f"Invalid SSL certificate content: {e}")
                         raise SaasException(f"Invalid SSL certificate: {e}") from e
@@ -176,7 +176,8 @@ class SaasPlugin(SaasPluginBase):
             except AuthenticationException as e:
                 Log.error(f"Authentication failed: {e}")
                 raise SaasException(
-                    "Authentication failed. Check admin credentials."
+                    "Authentication failed. Please verify your API key has "
+                    "the necessary permissions for user management."
                 ) from e
             except Exception as e:
                 Log.error(
