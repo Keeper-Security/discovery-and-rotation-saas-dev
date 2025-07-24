@@ -107,7 +107,7 @@ Store the configuration values in a Keeper Security record:
     plugin_test config -f elasticsearch_serviceaccount_token.py -t "Elasticsearch Service Token Config" -s "shared_folder_uid"
     ```
 
-    <img src="images_serviceaccount/plugin_config_test.png" width="350" alt="plugin_config_test">
+    <img src="images_serviceaccount/plugin_config.png" width="350" alt="plugin_config">
 
 - Fill in the configuration fields with your Elasticsearch details:
     - **Elasticsearch URL**: Your cluster URL
@@ -119,9 +119,10 @@ Store the configuration values in a Keeper Security record:
 ### 2. Create PAM User Record
 - Create a record of type **PAM User** inside the Keeper Vault.
 - Enter a username that will be used as the default token name if not specified in configuration.
+- Create a field named as `token_name` and add the token name.
 - This record will store the generated service account token.
 
-    <img src="images_serviceaccount/plugin_config.png" width="350" alt="plugin_config">
+    <img src="images_serviceaccount/plugin_test_config.png" width="350" alt="plugin_test_config">
 
 ## Executing the Plugin for Service Account Token Creation
 
