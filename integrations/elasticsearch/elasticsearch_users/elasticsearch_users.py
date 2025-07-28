@@ -16,14 +16,12 @@ from kdnrm.log import Log
 from kdnrm.saas_plugins import SaasPluginBase
 from kdnrm.saas_type import Secret, SaasConfigItem, SaasConfigEnum
 try:
-    # Try relative import first (when run as package)
     from ..common.utils import (
         validate_elasticsearch_url,
         should_verify_ssl,
         build_elasticsearch_client_config
     )
 except ImportError:
-    # Fall back to absolute import with path manipulation
     import sys
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))

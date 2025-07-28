@@ -1,8 +1,15 @@
 from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
-import elasticsearch_serviceaccount_token
-SaasPlugin = elasticsearch_serviceaccount_token.SaasPlugin
+try:
+    # Try relative import first (when run as package)
+    from ..elasticsearch_serviceaccount.elasticsearch_serviceaccount_token import SaasPlugin
+except ImportError:
+    # Fall back to absolute import with path manipulation
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from elasticsearch_serviceaccount.elasticsearch_serviceaccount_token import SaasPlugin
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser, Field
@@ -10,26 +17,20 @@ from kdnrm.exceptions import SaasException
 from elasticsearch.exceptions import ConflictError, NotFoundError, AuthenticationException
 from plugin_dev.test_base import MockRecord
 from typing import Optional, Dict, Any
+from test_utils import (
+    ElasticsearchTestBase,
+    ElasticsearchServiceAccountTestUtils,
+    DEFAULT_ELASTICSEARCH_URL,
+    DEFAULT_USERNAME
+)
 
 
-class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
+class ElasticsearchServiceAccountTokenTest(ElasticsearchTestBase):
     """Test suite for Elasticsearch Service Account Token SaaS plugin."""
 
     def setUp(self):
         """Set up test environment before each test."""
         super().setUp()
-        Log.init()
-        Log.set_log_level("DEBUG")
-        
-        # Default test configuration
-        self.default_config = {
-            'elasticsearch_url': 'https://localhost:9200',
-            'api_key': 'test_api_key',
-            'namespace': 'elastic',
-            'service': 'fleet-server',
-            'verify_ssl': 'False',
-            'ssl_content': ''
-        }
         
         # Default token name for user fields
         self.default_token_name = 'test-token'
@@ -48,59 +49,42 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
         Returns:
             Configured SaasPlugin instance
         """
-        config = {**self.default_config, **(config_overrides or {})}
-        
         # Create user fields with token_name
         user_fields = []
         if token_name == "DEFAULT":
             # Use default token name
-            user_fields.append(Field(
-                type="text",
-                label="token_name",
-                values=[self.default_token_name]
-            ))
+            user_fields.append(ElasticsearchServiceAccountTestUtils.create_token_name_field(self.default_token_name))
         elif token_name is not None:
             # Use provided token name
-            user_fields.append(Field(
-                type="text",
-                label="token_name",
-                values=[token_name]
-            ))
+            user_fields.append(ElasticsearchServiceAccountTestUtils.create_token_name_field(token_name))
         # If token_name is None, don't create any fields
         
-        user = SaasUser(
-            username=Secret("test-user"),
-            new_password=Secret("dummy-password-not-used"),
-            prior_password=prior_password or Secret("old-dummy-password"),
+        user = self.create_user(
+            username=DEFAULT_USERNAME,
+            new_password="dummy-password-not-used",
+            prior_password=prior_password.value if prior_password else "old-dummy-password",
             fields=user_fields
         )
 
-        config_record = MockRecord(
-            custom=[
-                {'type': 'url', 'label': 'Elasticsearch URL', 'value': [config['elasticsearch_url']]},
-                {'type': 'secret', 'label': 'API Key', 'value': [config['api_key']]},
-                {'type': 'text', 'label': 'Service Account Namespace', 'value': [config['namespace']]},
-                {'type': 'text', 'label': 'Service Account Service', 'value': [config['service']]},
-                {'type': 'text', 'label': 'Verify SSL', 'value': [config['verify_ssl']]},
-                {'type': 'multiline', 'label': 'SSL Certificate Content', 'value': [config['ssl_content']]},
-            ]
+        # Create config with defaults and overrides
+        elasticsearch_url = config_overrides.get('elasticsearch_url', DEFAULT_ELASTICSEARCH_URL) if config_overrides else DEFAULT_ELASTICSEARCH_URL
+        api_key = config_overrides.get('api_key', 'test_api_key') if config_overrides else 'test_api_key'
+        namespace = config_overrides.get('namespace', 'elastic') if config_overrides else 'elastic'
+        service = config_overrides.get('service', 'fleet-server') if config_overrides else 'fleet-server'
+        verify_ssl = config_overrides.get('verify_ssl', 'False') if config_overrides else 'False'
+        ssl_content = config_overrides.get('ssl_content', '') if config_overrides else ''
+
+        config_fields = ElasticsearchServiceAccountTestUtils.create_service_account_config_fields(
+            elasticsearch_url=elasticsearch_url,
+            api_key=api_key,
+            namespace=namespace,
+            service=service,
+            verify_ssl=verify_ssl,
+            ssl_content=ssl_content
         )
 
+        config_record = self.create_config_record(config_fields)
         return SaasPlugin(user=user, config_record=config_record)
-
-    def create_mock_elasticsearch_client(self, mock_elasticsearch: MagicMock) -> MagicMock:
-        """
-        Create and configure a mock Elasticsearch client.
-        
-        Args:
-            mock_elasticsearch: The mocked Elasticsearch class
-            
-        Returns:
-            Configured mock client instance
-        """
-        mock_client = MagicMock()
-        mock_elasticsearch.return_value = mock_client
-        return mock_client
 
     def assert_client_initialization(self, mock_elasticsearch: MagicMock, expected_config: Dict[str, Any]):
         """
@@ -110,15 +94,21 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
             mock_elasticsearch: Mocked Elasticsearch class
             expected_config: Expected configuration parameters
         """
-        mock_elasticsearch.assert_called_once_with(
-            hosts=[expected_config.get('hosts', 'https://localhost:9200')],
-            api_key=expected_config.get('api_key', 'test_api_key'),
-            verify_certs=expected_config.get('verify_certs', False),
-            request_timeout=30,
-            retry_on_timeout=True,
-            max_retries=3,
-            ssl_context=expected_config.get('ssl_context')
-        )
+        expected_call_kwargs = {
+            'hosts': [expected_config.get('hosts', 'https://localhost:9200')],
+            'api_key': expected_config.get('api_key', 'test_api_key'),
+            'verify_certs': expected_config.get('verify_certs', False),
+            'request_timeout': 30,
+            'retry_on_timeout': True,
+            'max_retries': 3,
+        }
+        
+        # Only include ssl_context if it's not None
+        ssl_context = expected_config.get('ssl_context')
+        if ssl_context is not None:
+            expected_call_kwargs['ssl_context'] = ssl_context
+            
+        mock_elasticsearch.assert_called_once_with(**expected_call_kwargs)
 
     def test_plugin_metadata(self):
         """Test plugin basic metadata and requirements."""
@@ -152,7 +142,13 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
 
     def test_url_validation_success_cases(self):
         """Test URL validation with valid URLs."""
-        plugin = self.create_plugin()
+        try:
+            from ..common.utils import validate_elasticsearch_url
+        except ImportError:
+            import sys
+            import os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+            from common.utils import validate_elasticsearch_url
         
         valid_urls = [
             "https://localhost:9200",
@@ -163,11 +159,17 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
         
         for url in valid_urls:
             with self.subTest(url=url):
-                plugin._validate_url(url)  # Should not raise
+                validate_elasticsearch_url(url)  # Should not raise
 
     def test_url_validation_failure_cases(self):
         """Test URL validation with invalid URLs."""
-        plugin = self.create_plugin()
+        try:
+            from ..common.utils import validate_elasticsearch_url
+        except ImportError:
+            import sys
+            import os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+            from common.utils import validate_elasticsearch_url
         
         invalid_urls = [
             "not-a-url",
@@ -180,7 +182,7 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
         for url in invalid_urls:
             with self.subTest(url=url):
                 with self.assertRaises(SaasException) as context:
-                    plugin._validate_url(url)
+                    validate_elasticsearch_url(url)
                 self.assertEqual("invalid_url", context.exception.codes[0]["code"])
 
     def test_token_name_validation_success_cases(self):
@@ -221,7 +223,7 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
 
     # ==================== Client Connection Tests ====================
 
-    @patch('elasticsearch_serviceaccount_token.Elasticsearch')
+    @patch('elasticsearch_serviceaccount.elasticsearch_serviceaccount_token.Elasticsearch')
     def test_client_initialization_default_config(self, mock_elasticsearch):
         """Test Elasticsearch client initialization with default configuration."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -238,7 +240,7 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
         
         mock_client.ping.assert_called_once()
 
-    @patch('elasticsearch_serviceaccount_token.Elasticsearch')
+    @patch('elasticsearch_serviceaccount.elasticsearch_serviceaccount_token.Elasticsearch')
     def test_client_initialization_ssl_enabled(self, mock_elasticsearch):
         """Test client initialization with SSL verification enabled."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -251,7 +253,7 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
             'ssl_context': None
         })
 
-    @patch('elasticsearch_serviceaccount_token.Elasticsearch')
+    @patch('elasticsearch_serviceaccount.elasticsearch_serviceaccount_token.Elasticsearch')
     def test_client_connection_failure(self, mock_elasticsearch):
         """Test handling of client connection failures."""
         mock_elasticsearch.side_effect = Exception("Connection failed")
@@ -266,7 +268,7 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
 
     # ==================== Token Creation Tests ====================
 
-    @patch('elasticsearch_serviceaccount_token.Elasticsearch')
+    @patch('elasticsearch_serviceaccount.elasticsearch_serviceaccount_token.Elasticsearch')
     def test_successful_token_creation(self, mock_elasticsearch):
         """Test successful service account token creation."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -295,7 +297,7 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
         self.assertIsNotNone(token_field)
         self.assertEqual("AAEAAWVsYXN0aWM...test-token-value", token_field.value.value)
 
-    @patch('elasticsearch_serviceaccount_token.Elasticsearch')
+    @patch('elasticsearch_serviceaccount.elasticsearch_serviceaccount_token.Elasticsearch')
     def test_token_creation_with_custom_config(self, mock_elasticsearch):
         """Test token creation with custom configuration."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -318,7 +320,7 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
             name="custom-token"
         )
 
-    @patch('elasticsearch_serviceaccount_token.Elasticsearch')
+    @patch('elasticsearch_serviceaccount.elasticsearch_serviceaccount_token.Elasticsearch')
     def test_elasticsearch_error_scenarios(self, mock_elasticsearch):
         """Test handling of various Elasticsearch errors."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -341,7 +343,7 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
                 self.assertEqual(expected_code, context.exception.codes[0]["code"])
                 self.assertIn(expected_message, str(context.exception))
 
-    @patch('elasticsearch_serviceaccount_token.Elasticsearch')
+    @patch('elasticsearch_serviceaccount.elasticsearch_serviceaccount_token.Elasticsearch')
     def test_malformed_api_responses(self, mock_elasticsearch):
         """Test handling of malformed API responses."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -408,21 +410,20 @@ class ElasticsearchServiceAccountTokenTest(unittest.TestCase):
 
     def test_ssl_context_creation_with_invalid_cert(self):
         """Test SSL context creation with invalid certificate content."""
-        plugin = self.create_plugin({'verify_ssl': 'True'})
+        try:
+            from ..common.utils import create_ssl_context
+        except ImportError:
+            import sys
+            import os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+            from common.utils import create_ssl_context
         
-        # Mock invalid certificate content
-        with patch.object(plugin, 'get_config') as mock_get_config:
-            mock_get_config.side_effect = lambda key: {
-                'verify_ssl': 'True',
-                'ssl_content': 'invalid-cert-content'
-            }.get(key)
-            
-            # Should raise SaasException for invalid certificate content
-            with self.assertRaises(SaasException) as context:
-                plugin._create_ssl_context()
-            
-            self.assertEqual("invalid_ssl_cert", context.exception.codes[0]["code"])
-            self.assertIn("Invalid SSL certificate", str(context.exception))
+        # Should raise SaasException for invalid certificate content
+        with self.assertRaises(SaasException) as context:
+            create_ssl_context(cert_content="invalid-cert-content", verify_ssl=True)
+        
+        self.assertEqual("invalid_ssl_cert", context.exception.codes[0]["code"])
+        self.assertIn("Invalid SSL certificate", str(context.exception))
 
 
 if __name__ == '__main__':
