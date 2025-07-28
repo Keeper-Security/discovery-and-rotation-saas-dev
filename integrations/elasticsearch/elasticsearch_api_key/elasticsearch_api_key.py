@@ -17,11 +17,23 @@ from kdnrm.saas_type import SaasConfigItem, ReturnCustomField, SaasConfigEnum
 from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
 from kdnrm.secret import Secret
-from integrations.elasticsearch.common.utils import (
-    validate_elasticsearch_url,
-    should_verify_ssl,
-    build_elasticsearch_client_config
-)
+try:
+    # Try relative import first (when run as package)
+    from ..common.utils import (
+        validate_elasticsearch_url,
+        should_verify_ssl,
+        build_elasticsearch_client_config
+    )
+except ImportError:
+    # Fall back to absolute import with path manipulation
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from common.utils import (
+        validate_elasticsearch_url,
+        should_verify_ssl,
+        build_elasticsearch_client_config
+    )
 
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser

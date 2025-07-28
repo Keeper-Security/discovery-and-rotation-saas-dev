@@ -5,7 +5,15 @@ from plugin_dev.test_base import MockRecord
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser
-from integrations.elasticsearch.elasticsearch_users.elasticsearch_users import SaasPlugin
+try:
+    # Try relative import first (when run as package)
+    from ..elasticsearch_users.elasticsearch_users import SaasPlugin
+except ImportError:
+    # Fall back to absolute import with path manipulation
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from elasticsearch_users.elasticsearch_users import SaasPlugin
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 from typing import Optional
 
