@@ -43,32 +43,32 @@ Service accounts in Elasticsearch are defined by a namespace and service combina
 - To manage service account tokens, you need appropriate permissions:
 - Log in to the Elasticsearch Dashboard and navigate to **Stack Management**.
 
-    <img src="images_serviceaccount/stack_management.png" width="350" alt="stack_management">
+    <img src="../elasticsearch_serviceaccount/images/stack_management.png" width="350" alt="stack_management">
 
 - Under the **Security** section, click on **Roles**.
 - Click on **Create Role** and fill in the required details:
     - **Role Name**: `service_account_manager`
     - **Cluster Privileges**: Add `manage_service_account`
 
-         <img src="images_serviceaccount/create_service_role.png" width="350" alt="create_service_role">
+         <img src="../elasticsearch_serviceaccount/images/create_service_role.png" width="350" alt="create_service_role">
 
-         <img src="images_serviceaccount/create_role_2.png" width="350" alt="create_role_2">
+         <img src="../elasticsearch_serviceaccount/images/create_role_2.png" width="350" alt="create_role_2">
 
 
 - Click **Create** to finalize the role creation.
 
-    <img src="images_serviceaccount/created_service_role.png" width="350" alt="created_service_role">
+    <img src="../elasticsearch_serviceaccount/images/created_service_role.png" width="350" alt="created_service_role">
 
 #### Creating an API Key for Service Account Management
 - To create an API key with service account management permissions:
 - Go to **Stack Management** → **Security** → **API Keys**.
 
-    <img src="images_serviceaccount/security_page.png" width="350" alt="security_page">
+    <img src="../elasticsearch_serviceaccount/images/security_page.png" width="350" alt="security_page">
 
 - Click the **Create API key** button.
 - Provide a name for the key (e.g., "Service Account Token Manager") and optionally set an expiration time.
 
-    <img src="images_serviceaccount/create_service_api_key_1.png" width="350" alt="create_service_api_key_1">
+    <img src="../elasticsearch_serviceaccount/images/create_service_api_key_1.png" width="350" alt="create_service_api_key_1">
 
 - Select the **User API key** and attach the following policy for service account token management:
     ```json
@@ -88,7 +88,7 @@ Service accounts in Elasticsearch are defined by a namespace and service combina
     }
     ```
 
-    <img src="images_serviceaccount/create_service_api_key_2.png" width="350" alt="create_service_api_key_2">
+    <img src="../elasticsearch_serviceaccount/images/create_service_api_key_2.png" width="350" alt="create_service_api_key_2">
 
 - Click **Create API key**.
 - A new API key will be generated — copy as it will be needed for the plugin configuration.
@@ -107,7 +107,7 @@ Store the configuration values in a Keeper Security record:
     plugin_test config -f elasticsearch_serviceaccount_token.py -t "Elasticsearch Service Token Config" -s "shared_folder_uid"
     ```
 
-    <img src="images_serviceaccount/plugin_config.png" width="350" alt="plugin_config">
+    <img src="../elasticsearch_serviceaccount/images/plugin_config.png" width="350" alt="plugin_config">
 
 - Fill in the configuration fields with your Elasticsearch details:
     - **Elasticsearch URL**: Your cluster URL
@@ -122,7 +122,7 @@ Store the configuration values in a Keeper Security record:
 - Create a field named as `token_name` and add the token name.
 - This record will store the generated service account token.
 
-    <img src="images_serviceaccount/plugin_test_config.png" width="350" alt="plugin_test_config">
+    <img src="../elasticsearch_serviceaccount/images/plugin_test_config.png" width="350" alt="plugin_test_config">
 
 ## Executing the Plugin for Service Account Token Creation
 
@@ -139,11 +139,11 @@ Once you have your prerequisites ready, execute the plugin:
     2. Create a new service account token
     3. Store the token securely in the PAM User record
 
-    <img src="images_serviceaccount/plugin_run.png" width="350" alt="plugin_run">
+    <img src="../elasticsearch_serviceaccount/images/plugin_run.png" width="350" alt="plugin_run">
 
 - The Keeper Vault PAM User Record will be updated with:
     - **Service Account Token**: The generated token value
     - **Token Name**: The name of the created token
     - **Service Account**: The namespace/service combination
 
-    <img src="images_serviceaccount/updated_service_record.png" width="350" alt="updated_service_record">
+    <img src="../elasticsearch_serviceaccount/images/updated_service_record.png" width="350" alt="updated_service_record">

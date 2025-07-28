@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import base64
-import ssl
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
-from urllib.parse import urlparse
 
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import (
@@ -19,6 +17,11 @@ from kdnrm.saas_type import SaasConfigItem, ReturnCustomField, SaasConfigEnum
 from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
 from kdnrm.secret import Secret
+from integrations.elasticsearch.common.utils import (
+    validate_elasticsearch_url,
+    should_verify_ssl,
+    build_elasticsearch_client_config
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
@@ -123,21 +126,7 @@ class SaasPlugin(SaasPluginBase):
     @property
     def verify_ssl(self) -> bool:
         """Get SSL verification setting."""
-        return self.get_config("verify_ssl") == "True"
-
-    def _validate_elasticsearch_url(self, url: str) -> None:
-        """Validate Elasticsearch URL format."""
-        try:
-            parsed = urlparse(url)
-            if not parsed.scheme or not parsed.netloc:
-                raise ValueError("Invalid URL structure")
-            if parsed.scheme not in ("http", "https"):
-                raise ValueError("URL must use http or https")
-        except Exception as e:
-            raise SaasException(
-                "Invalid Elasticsearch URL. Must be a valid http/https URL.",
-                code="invalid_url"
-            ) from e
+        return should_verify_ssl(self.get_config("verify_ssl"))
 
     def _get_api_key_from_user_fields(self) -> str:
         """Extract encoded API key from user fields."""
@@ -166,45 +155,27 @@ class SaasPlugin(SaasPluginBase):
                 code="invalid_api_key_format"
             ) from e
 
-    def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
-        """Create SSL context if custom certificate is provided."""
-        if not self.verify_ssl:
-            return None
-
-        cert_content = self.get_config("ssl_content")
-        if not cert_content or not cert_content.strip():
-            return None
-
-        try:
-            return ssl.create_default_context(cadata=cert_content.strip())
-        except ssl.SSLError as e:
-            Log.error(f"Invalid SSL certificate content: {e}")
-            raise SaasException(
-                f"Invalid SSL certificate: {e}",
-                code="invalid_ssl_cert"
-            ) from e
-
     def _initialize_elasticsearch_client(self) -> Elasticsearch:
         """Initialize and return Elasticsearch client."""
         elasticsearch_url = self.get_config("elasticsearch_url")
-        self._validate_elasticsearch_url(elasticsearch_url)
+        validate_elasticsearch_url(elasticsearch_url)
         username = self.get_config("username")
         password = self.get_config("password")
-        ssl_context = self._create_ssl_context()
+        cert_content = self.get_config("ssl_content")
 
         Log.debug("Initializing Elasticsearch client with basic authentication")
 
         try:
-            client = Elasticsearch(
+            client_config = build_elasticsearch_client_config(
                 hosts=[elasticsearch_url],
+                verify_ssl=self.verify_ssl,
+                cert_content=cert_content,
                 basic_auth=(username, password),
-                verify_certs=self.verify_ssl,
                 request_timeout=API_TIMEOUT,
-                retry_on_timeout=True,
-                max_retries=MAX_RETRIES,
-                ssl_context=ssl_context
+                max_retries=MAX_RETRIES
             )
 
+            client = Elasticsearch(**client_config)
             client.ping()
             Log.debug("Successfully connected to Elasticsearch")
             return client

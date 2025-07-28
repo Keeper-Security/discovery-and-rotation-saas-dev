@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ssl
 from typing import List, TYPE_CHECKING
 
 from elasticsearch import Elasticsearch
@@ -16,7 +15,11 @@ from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
 from kdnrm.saas_plugins import SaasPluginBase
 from kdnrm.saas_type import Secret, SaasConfigItem, SaasConfigEnum
-from urllib.parse import urlparse
+from integrations.elasticsearch.common.utils import (
+    validate_elasticsearch_url,
+    should_verify_ssl,
+    build_elasticsearch_client_config
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
@@ -120,23 +123,7 @@ class SaasPlugin(SaasPluginBase):
     def verify_ssl(self) -> bool:
         """Verify SSL for the Elasticsearch client."""
         verify_ssl_value = self.get_config("verify_ssl")
-        return str(verify_ssl_value) == "True"
-
-    def _validate_url(self, url: str) -> None:
-        """Validate the Elasticsearch URL."""
-        try:
-            url_parsed = urlparse(url)
-            if not url_parsed.scheme or not url_parsed.netloc:
-                raise ValueError("Invalid URL structure")
-            if url_parsed.scheme not in ("http", "https"):
-                raise ValueError("URL must use http or https")
-        except Exception as e:
-            raise SaasException(f"Invalid Elasticsearch URL: {e}") from e
-
-    @property
-    def cert_content(self) -> str:
-        """Get the certificate content for the Elasticsearch client."""
-        return self.get_config("ssl_content")
+        return should_verify_ssl(verify_ssl_value)
 
     @property
     def client(self) -> Elasticsearch:
@@ -144,23 +131,16 @@ class SaasPlugin(SaasPluginBase):
         if self._client is None:
             Log.debug("Creating Elasticsearch client")
             elasticsearch_url = self.get_config("elasticsearch_url")
-            self._validate_url(elasticsearch_url)
-            client_config = {
-                "hosts": [elasticsearch_url],
-                "api_key": self.get_config("api_key"),
-                "request_timeout": API_TIMEOUT,
-                "verify_certs": self.verify_ssl,
-            }
-
-            if self.verify_ssl:
-                cert_content = self.cert_content
-                if cert_content and cert_content.strip():
-                    try:
-                        ssl_context = ssl.create_default_context(cadata=cert_content)
-                        client_config["ssl_context"] = cert_content
-                    except ssl.SSLError as e:
-                        Log.error(f"Invalid SSL certificate content: {e}")
-                        raise SaasException(f"Invalid SSL certificate: {e}") from e
+            validate_elasticsearch_url(elasticsearch_url)
+            
+            cert_content = self.get_config("ssl_content")
+            client_config = build_elasticsearch_client_config(
+                hosts=[elasticsearch_url],
+                verify_ssl=self.verify_ssl,
+                cert_content=cert_content,
+                api_key=self.get_config("api_key"),
+                request_timeout=API_TIMEOUT
+            )
 
             try:
                 self._client = Elasticsearch(**client_config)

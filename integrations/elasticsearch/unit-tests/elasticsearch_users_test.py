@@ -5,7 +5,7 @@ from plugin_dev.test_base import MockRecord
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser
-from elasticsearch_user import SaasPlugin
+from integrations.elasticsearch.elasticsearch_users.elasticsearch_users import SaasPlugin
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 from typing import Optional
 
@@ -355,7 +355,7 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
         self.assertFalse(plugin.verify_ssl)
 
     def test_cert_content_property(self):
-        """Test cert_content property."""
+        """Test cert_content access through get_config."""
         cert_data = "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
         field_values = {
             "API Key": "test", 
@@ -365,7 +365,7 @@ class ElasticsearchUserPluginTest(unittest.TestCase):
         }
         
         plugin = self.plugin(field_values=field_values)
-        self.assertEqual(plugin.cert_content, cert_data)
+        self.assertEqual(plugin.get_config("ssl_content"), cert_data)
 
 
 if __name__ == '__main__':

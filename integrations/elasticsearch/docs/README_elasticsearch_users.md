@@ -29,7 +29,7 @@ In order to use the post-rotation script, you will need the following prerequisi
 - To create a user in Elasticsearch, follow these steps:
 - Log in to the Elasticsearch Dashboard and navigate to **Stack Management**.
 
-    <img src="images/stack_management.png" width="350" alt="stack_management">
+    <img src="../elasticsearch_users/images/stack_management.png" width="350" alt="stack_management">
 
 - Under the **Security** section, click on **Users**.
 - Click on Create User and fill in the required details such as:
@@ -37,18 +37,18 @@ In order to use the post-rotation script, you will need the following prerequisi
     - **Email**
     - **Password**
 
-         <img src="images/create_user_elastic.png" width="350" alt="create_user_elastic">
+         <img src="../elasticsearch_users/images/create_user_elastic.png" width="350" alt="create_user_elastic">
 
 - (Optional) Assign one or more roles to the user if needed.
 - Click **Create** to finalize the user creation.
 
-    <img src="images/created_user.png" width="350" alt="created_user">
+    <img src="../elasticsearch_users/images/created_user.png" width="350" alt="created_user">
 
 #### Role:
 To perform user management operations such as password rotation using an API key, the associated user or role must have appropriate permissions.
 - Under the **Security** section, click on **Roles**.
 
-    <img src="images/create_role.png" width="350" alt="create_role">
+    <img src="../elasticsearch_users/images/create_role.png" width="350" alt="create_role">
 
 - Click on **Create Role**.
 - Add the details of role like name and click **Create role**
@@ -58,12 +58,12 @@ To perform user management operations such as password rotation using an API key
 - To create an API key in Elasticsearch:
 - Go to **Stack Management** → **Security** → **API Keys**.
 
-    <img src="images/security_page.png" width="350" alt="security_page">
+    <img src="../elasticsearch_users/images/security_page.png" width="350" alt="security_page">
 
 - Click the **Create API key** button.
 - Provide a name for the key and optionally set an expiration time in the Apply expiration field.
 
-    <img src="images/create_api_key_1.png" width="350" alt="create_api_key_1">
+    <img src="../elasticsearch_users/images/create_api_key_1.png" width="350" alt="create_api_key_1">
 
 - Add the expiration date.
 - Select the **User API key** and attach the below policy. 
@@ -84,12 +84,12 @@ To perform user management operations such as password rotation using an API key
     }
     ```
 
-    <img src="images/create_api_key_2.png" width="350" alt="create_api_key_2">
+    <img src="../elasticsearch_users/images/create_api_key_2.png" width="350" alt="create_api_key_2">
 
 - Click **Create API key**.
 - A new API key will be generated — copy and securely store it, as it will be needed to configure authentication in your application.
 
-    <img src="images/created_key.png" width="350" alt="created_key">
+    <img src="../elasticsearch_users/images/created_key.png" width="350" alt="created_key">
 
 
 
@@ -103,7 +103,7 @@ Store the configuration values in a Keeper Security record of type `Login` named
     plugin_test config -f elasticsearch_user.py -t "Elasticsearch Configuration Record" -s "shared_folder_uid"
     ```
 
-    <img src="images/plugin_test.png" width="350" alt="plugin_test">
+    <img src="../elasticsearch_users/images/plugin_test.png" width="350" alt="plugin_test">
 
 
 ### 2. Create and Add Details in New Rotation Record of type PAM User:
@@ -111,7 +111,7 @@ Store the configuration values in a Keeper Security record of type `Login` named
 - Enter the username copied from the previous step.
 - This will create a record of type **PAM User**. 
 
-    <img src="images/created_pam_user.png" width="350" alt="created_pam_user">
+    <img src="../elasticsearch_users/images/created_pam_user.png" width="350" alt="created_pam_user">
 
 
 ## Executing the Script for Rotating Password
@@ -125,9 +125,9 @@ Once you have your pre-requisites ready, make sure you cover the following:
 
 - The above command rotate the Elastic Search User Password
 
-    <img src="images/plugin_run.png" width="350" alt="plugin_run">
+    <img src="../elasticsearch_users/images/plugin_run.png" width="350" alt="plugin_run">
 
 
 - Keeper Vault PAM User Record is updated.
 
-    <img src="images/rotate_user_record.png" width="350" alt="rotate_user_record">
+    <img src="../elasticsearch_users/images/rotate_user_record.png" width="350" alt="rotate_user_record">

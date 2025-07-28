@@ -47,11 +47,11 @@ The user record must contain:
 ### 1. Create Elasticsearch role 
 - Log in to Elastic Search and navigate to **Stack Management**. 
 
-    <img src="images_api_key/stack_management.png" width="350" alt="stack_management">
+    <img src="../elasticsearch_api_key/images/stack_management.png" width="350" alt="stack_management">
 
 - Go to the **Roles** section and click on **Create Role**.  
 
-    <img src="images_api_key/create_role.png" width="350" alt="create_role">
+    <img src="../elasticsearch_api_key/images/create_role.png" width="350" alt="create_role">
 
 - Attach the **manage_own_api_key**, **manage_security** and **manage_api_key** roles inside cluster privileges
 - Click **Create Role** to save the new role configuration.  
@@ -59,7 +59,7 @@ The user record must contain:
 ### 2. Create User and assign created role
 - Under **Stack Management**, click on **Users**.  
 
-    <img src="images_api_key/create_user.png" width="350" alt="create_user">
+    <img src="../elasticsearch_api_key/images/create_user.png" width="350" alt="create_user">
 
 - Create a new user and assign the created role to the user.
 - Click **Create User** to finalize the user setup.  
@@ -68,16 +68,16 @@ The user record must contain:
 - Under **Stack Management**, click on **API keys**. 
 - Click **API key**
 
-    <img src="images_api_key/create_api_key.png" width="350" alt="create_api_key">
+    <img src="../elasticsearch_api_key/images/create_api_key.png" width="350" alt="create_api_key">
 
 - Enter a name for the new API key and specify details such as the expiration type.
 - Select **User API Key** and add the necessary role descriptors using JSON format 
 
-    <img src="images_api_key/api_key_role_descriptor.png" width="350" alt="api_key_role_descriptor">
+    <img src="../elasticsearch_api_key/images/api_key_role_descriptor.png" width="350" alt="api_key_role_descriptor">
 
 -  Click **Create API key** to save the new API Key configuration.  
 
-    <img src="images_api_key/created_api_key.png" width="350" alt="created_api_key">
+    <img src="../elasticsearch_api_key/images/created_api_key.png" width="350" alt="created_api_key">
 
 
 > **Note:**  The role descriptors attached during role creation will be applied to any new API key generated for that role.
@@ -139,7 +139,7 @@ Store the configuration values in a Keeper Security record:
     plugin_test config -f elasticsearch_api_key.py -t "Elasticsearch API Key" -s "shared_folder_uid"
     ```
    
-    <img src="images_api_key/plugin_test_config.png" width="350" alt="plugin_test_config">
+    <img src="../elasticsearch_api_key/images/plugin_test_config.png" width="350" alt="plugin_test_config">
 
 - Fill in the configuration fields with your Elasticsearch details:
     - **Elasticsearch URL**: Your cluster URL
@@ -150,7 +150,7 @@ Store the configuration values in a Keeper Security record:
 
 - The above command will create a config record inside the keeper vault.
 
-     <img src="images_api_key/plugin_config.png" width="350" alt="plugin_config">
+     <img src="../elasticsearch_api_key/images/plugin_config.png" width="350" alt="plugin_config">
 
 
 ### 2. Create PAM User Record
@@ -159,7 +159,7 @@ Store the configuration values in a Keeper Security record:
 - Create a field named as `api_key_encoded` and add the token name.
 - This record will store the encoded api key.
 
-    <img src="images_api_key/pam_user_created.png" width="350" alt="pam_user_created">
+    <img src="../elasticsearch_api_key/images/pam_user_created.png" width="350" alt="pam_user_created">
 
 
 ## Executing the Plugin for ElasticSearch API Key
@@ -171,11 +171,11 @@ Once you have your prerequisites ready, execute the plugin:
 plugin_test run -f elasticsearch_api_key.py -u <pam_user_record_uid> -c <config_record_uid>
 ```
 
-   <img src="images_api_key/plugin_run.png" width="350" alt="plugin_run">
+   <img src="../elasticsearch_api_key/../elasticsearch_api_key/images/plugin_run.png" width="350" alt="plugin_run">
 
 The above command will rotate the API key in elastic search.
 
-   <img src="images_api_key/plugin_test_run_rotated.png" width="350" alt="plugin_test_run_rotated">
+   <img src="../elasticsearch_api_key/images/plugin_test_run_rotated.png" width="350" alt="plugin_test_run_rotated">
 
 
 ## Limitations
