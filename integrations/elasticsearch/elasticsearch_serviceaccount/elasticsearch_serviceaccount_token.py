@@ -9,14 +9,12 @@ from typing import List, TYPE_CHECKING, Optional
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import NotFoundError, ConflictError, AuthenticationException
 try:
-    # Try relative import first (when run as package)
     from ..common.utils import (
         validate_elasticsearch_url,
         should_verify_ssl,
         build_elasticsearch_client_config
     )
 except ImportError:
-    # Fall back to absolute import with path manipulation
     import sys
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -323,6 +321,14 @@ class SaasPlugin(SaasPluginBase):
         Create a new service account token.
         """
         Log.info("Starting creation of Elasticsearch service account token")
+        if self.client:
+            pass
+        else:
+            Log.error("Failed to connect to Elasticsearch")
+            raise SaasException(
+                "Failed to connect to Elasticsearch",
+                code="elasticsearch_connection_error"
+            )
         try:
             self._delete_service_token()
         except NotFoundError:

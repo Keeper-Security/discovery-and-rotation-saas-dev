@@ -249,6 +249,14 @@ class SaasPlugin(SaasPluginBase):
         This method connects to Elasticsearch using admin credentials
         and changes the password for the specified user.
         """
+        if self.client:
+            pass
+        else:
+            Log.error("Failed to connect to Elasticsearch")
+            raise SaasException(
+                "Failed to connect to Elasticsearch",
+                code="elasticsearch_connection_error"
+            )
         if self.user.new_password is None:
             raise SaasException(
                 "Cannot change password. No new password provided."

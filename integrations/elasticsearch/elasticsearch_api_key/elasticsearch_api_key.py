@@ -18,14 +18,12 @@ from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
 from kdnrm.secret import Secret
 try:
-    # Try relative import first (when run as package)
     from ..common.utils import (
         validate_elasticsearch_url,
         should_verify_ssl,
         build_elasticsearch_client_config
     )
 except ImportError:
-    # Fall back to absolute import with path manipulation
     import sys
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -42,11 +40,6 @@ if TYPE_CHECKING:  # pragma: no cover
 # Constants
 API_TIMEOUT = 30
 MAX_RETRIES = 3
-MIN_EXPIRATION_MS = 60000  # 1 minute in milliseconds
-MS_PER_SECOND = 1000
-SECONDS_PER_MINUTE = 60
-MINUTES_PER_HOUR = 60
-HOURS_PER_DAY = 24
 PRIVILEGES_TO_PRESERVE = ["cluster", "indices", "applications", "run_as"]
 TOKEN_EXPIRATION_IN_DAYS = "30d"
 
@@ -408,6 +401,14 @@ class SaasPlugin(SaasPluginBase):
     def change_password(self):
         """Rotate the API key by creating a new one and invalidating the old one."""
         Log.info("Starting Elasticsearch API key rotation")
+        if self.client:
+            pass
+        else:
+            Log.error("Failed to connect to Elasticsearch")
+            raise SaasException(
+                "Failed to connect to Elasticsearch",
+                code="elasticsearch_connection_error"
+            )
 
         try:
             current_encoded_api_key = self._get_api_key_from_user_fields()
