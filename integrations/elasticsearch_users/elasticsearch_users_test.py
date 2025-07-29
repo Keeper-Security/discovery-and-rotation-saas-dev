@@ -7,7 +7,18 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import from the plugin file in the current directory
-from elasticsearch_users import SaasPlugin
+try:
+    from elasticsearch_users import SaasPlugin
+except ImportError:
+    # Alternative import if direct import fails
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "elasticsearch_users", 
+        os.path.join(os.path.dirname(__file__), "elasticsearch_users.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    SaasPlugin = module.SaasPlugin
 from unittest.mock import MagicMock, patch
 from plugin_dev.test_base import MockRecord
 from kdnrm.secret import Secret

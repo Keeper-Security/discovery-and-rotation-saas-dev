@@ -1,1 +1,0 @@
-# Elasticsearch integrations package 

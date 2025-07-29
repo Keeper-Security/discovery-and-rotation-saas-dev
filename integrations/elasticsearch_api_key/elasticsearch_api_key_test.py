@@ -1,29 +1,109 @@
 from __future__ import annotations
 import unittest
+import sys
+import os
 from unittest.mock import MagicMock, patch
-try:
-    # Try relative import first (when run as package)
-    from ..elasticsearch_api_key.elasticsearch_api_key import SaasPlugin
-except ImportError:
-    # Fall back to absolute import with path manipulation
-    import sys
-    import os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-    from elasticsearch_api_key.elasticsearch_api_key import SaasPlugin
+from plugin_dev.test_base import MockRecord
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser, Field
 from kdnrm.exceptions import SaasException
-
-from plugin_dev.test_base import MockRecord
 from typing import Optional, Dict, Any
 import base64
-from test_utils import (
-    ElasticsearchTestBase,
-    ElasticsearchApiKeyTestUtils,
-    DEFAULT_ELASTICSEARCH_URL,
-    DEFAULT_USERNAME,
-)
+
+# Add current directory to Python path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import from the plugin file in the current directory
+try:
+    from elasticsearch_api_key import SaasPlugin
+except ImportError:
+    # Alternative import if direct import fails
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "elasticsearch_api_key", 
+        os.path.join(os.path.dirname(__file__), "elasticsearch_api_key.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    SaasPlugin = module.SaasPlugin
+
+# Test constants
+DEFAULT_ELASTICSEARCH_URL = "https://localhost:9200"
+DEFAULT_USERNAME = "testuser"
+
+
+class ElasticsearchTestBase(unittest.TestCase):
+    """Base class for Elasticsearch plugin tests."""
+
+    def setUp(self):
+        Log.init()
+        Log.set_log_level("DEBUG")
+
+    def create_mock_elasticsearch_client(self, mock_elasticsearch_class):
+        """Create a mock Elasticsearch client that behaves correctly."""
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_elasticsearch_class.return_value = mock_client
+        return mock_client
+
+    def create_user(self, username: str, new_password: str, prior_password: Optional[str] = None, fields: Optional[list] = None):
+        """Create a test user with the given parameters."""
+        if fields is None:
+            fields = []
+        
+        return SaasUser(
+            username=Secret(username),
+            new_password=Secret(new_password) if new_password else None,
+            prior_password=Secret(prior_password) if prior_password else None,
+            fields=fields
+        )
+
+    def create_config_record(self, config_fields: list):
+        """Create a MockRecord with the given config fields."""
+        return MockRecord(custom=config_fields)
+
+    def create_field(self, field_type: str, label: str, value: str, is_secret: bool = False):
+        """Create a configuration field."""
+        return {
+            'type': 'secret' if is_secret else field_type,
+            'label': label,
+            'value': [value]
+        }
+
+
+class ElasticsearchApiKeyTestUtils:
+    """Utility methods for creating test data specific to the API Key plugin."""
+
+    @staticmethod
+    def create_api_key_config_fields(elasticsearch_url: str = DEFAULT_ELASTICSEARCH_URL,
+                                   username: str = "admin",
+                                   password: str = "admin_password",
+                                   verify_ssl: str = "False",
+                                   ssl_content: str = "") -> list:
+        """Create config fields for the API Key plugin."""
+        return [
+            {'type': 'url', 'label': 'Elasticsearch URL', 'value': [elasticsearch_url]},
+            {'type': 'text', 'label': 'Admin Username', 'value': [username]},
+            {'type': 'secret', 'label': 'Admin Password', 'value': [password]},
+            {'type': 'text', 'label': 'Verify SSL', 'value': [verify_ssl]},
+            {'type': 'multiline', 'label': 'SSL Certificate Content', 'value': [ssl_content]},
+        ]
+
+    @staticmethod
+    def create_api_key_field(encoded_api_key: str) -> Field:
+        """Create an api_key_encoded field for user fields."""
+        return Field(
+            label="api_key_encoded",
+            type="secret",
+            values=[encoded_api_key]
+        )
+
+    @staticmethod
+    def create_encoded_api_key(api_key_id: str = "test-id", api_key_value: str = "test-key") -> str:
+        """Create a base64 encoded API key for testing."""
+        api_key_string = f"{api_key_id}:{api_key_value}"
+        return base64.b64encode(api_key_string.encode('utf-8')).decode('utf-8')
 
 
 class ElasticsearchApiKeyTest(ElasticsearchTestBase):
@@ -95,6 +175,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         # Test metadata
         self.assertEqual("Elasticsearch API Key", SaasPlugin.name)
         self.assertEqual("Keeper Security", SaasPlugin.author)
+        self.assertEqual("README.md", SaasPlugin.readme)
         self.assertFalse(self.create_plugin().can_rollback)
 
     def test_config_schema_structure(self):
@@ -120,14 +201,6 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
 
     def test_url_validation_success_cases(self):
         """Test URL validation with valid URLs."""
-        try:
-            from ..common.utils import validate_elasticsearch_url
-        except ImportError:
-            import sys
-            import os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-            from common.utils import validate_elasticsearch_url
-        
         valid_urls = [
             "https://localhost:9200",
             "http://elasticsearch.example.com:9200",
@@ -137,18 +210,10 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         
         for url in valid_urls:
             with self.subTest(url=url):
-                validate_elasticsearch_url(url)  # Should not raise
+                SaasPlugin.validate_elasticsearch_url(url)  # Should not raise
 
     def test_url_validation_failure_cases(self):
         """Test URL validation with invalid URLs."""
-        try:
-            from ..common.utils import validate_elasticsearch_url
-        except ImportError:
-            import sys
-            import os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-            from common.utils import validate_elasticsearch_url
-        
         invalid_urls = [
             "not-a-url",
             "ftp://example.com",
@@ -160,7 +225,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         for url in invalid_urls:
             with self.subTest(url=url):
                 with self.assertRaises(SaasException) as context:
-                    validate_elasticsearch_url(url)
+                    SaasPlugin.validate_elasticsearch_url(url)
                 self.assertEqual("invalid_url", context.exception.codes[0]["code"])
 
     def test_api_key_extraction_success(self):
@@ -221,69 +286,40 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
 
     def test_ssl_context_disabled(self):
         """Test SSL context when SSL verification is disabled."""
-        try:
-            from ..common.utils import create_ssl_context
-        except ImportError:
-            import sys
-            import os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-            from common.utils import create_ssl_context
-        ssl_context = create_ssl_context(cert_content="", verify_ssl=False)
+        ssl_context = SaasPlugin.create_ssl_context(cert_content="", verify_ssl=False)
         self.assertIsNone(ssl_context)
 
     def test_ssl_context_enabled_no_cert(self):
         """Test SSL context when SSL is enabled but no custom cert."""
-        try:
-            from ..common.utils import create_ssl_context
-        except ImportError:
-            import sys
-            import os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-            from common.utils import create_ssl_context
-        ssl_context = create_ssl_context(cert_content="", verify_ssl=True)
+        ssl_context = SaasPlugin.create_ssl_context(cert_content="", verify_ssl=True)
         self.assertIsNone(ssl_context)
 
     def test_ssl_context_with_cert(self):
         """Test SSL context creation with custom certificate."""
-        try:
-            from ..common.utils import create_ssl_context
-        except ImportError:
-            import sys
-            import os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-            from common.utils import create_ssl_context
         cert_content = "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
         
         with patch('ssl.create_default_context') as mock_ssl:
             mock_context = MagicMock()
             mock_ssl.return_value = mock_context
             
-            result = create_ssl_context(cert_content=cert_content, verify_ssl=True)
+            result = SaasPlugin.create_ssl_context(cert_content=cert_content, verify_ssl=True)
             
             mock_ssl.assert_called_once_with(cadata=cert_content)
             self.assertEqual(mock_context, result)
 
     def test_ssl_context_invalid_cert(self):
         """Test SSL context creation with invalid certificate."""
-        try:
-            from ..common.utils import create_ssl_context
-        except ImportError:
-            import sys
-            import os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-            from common.utils import create_ssl_context
-        
         with patch('ssl.create_default_context') as mock_ssl:
             import ssl as ssl_module
             mock_ssl.side_effect = ssl_module.SSLError("Invalid certificate")
             
             with self.assertRaises(SaasException) as context:
-                create_ssl_context(cert_content="invalid-cert", verify_ssl=True)
+                SaasPlugin.create_ssl_context(cert_content="invalid-cert", verify_ssl=True)
             self.assertEqual("invalid_ssl_cert", context.exception.codes[0]["code"])
 
     # ==================== Client Connection Tests ====================
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_client_initialization_success(self, mock_elasticsearch):
         """Test successful Elasticsearch client initialization."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -295,7 +331,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         mock_client.ping.assert_called_once()
         self.assertEqual(mock_client, client)
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_client_initialization_auth_failure(self, mock_elasticsearch):
         """Test client initialization with authentication failure."""
         mock_elasticsearch.side_effect = Exception("Auth failed")
@@ -307,7 +343,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         
         self.assertEqual("elasticsearch_connection_error", context.exception.codes[0]["code"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_client_initialization_connection_failure(self, mock_elasticsearch):
         """Test client initialization with connection failure."""
         mock_elasticsearch.side_effect = Exception("Connection failed")
@@ -321,7 +357,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
 
     # ==================== API Key Info Tests ====================
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_fetch_api_key_info_success(self, mock_elasticsearch):
         """Test successful API key info fetching."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -341,7 +377,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         self.assertEqual("test-id", result["id"])
         self.assertEqual("test-key", result["name"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_fetch_api_key_info_not_found(self, mock_elasticsearch):
         """Test API key info fetching when key not found."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -354,7 +390,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         
         self.assertEqual("elasticsearch_error", context.exception.codes[0]["code"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_fetch_api_key_info_empty_response(self, mock_elasticsearch):
         """Test API key info fetching with empty response."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -421,7 +457,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
 
     # ==================== API Key Creation Tests ====================
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_create_api_key_success(self, mock_elasticsearch):
         """Test successful API key creation."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -450,7 +486,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         self.assertEqual("new-id", result["id"])
         self.assertEqual("new-key", result["name"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_create_api_key_bad_request(self, mock_elasticsearch):
         """Test API key creation with bad request error."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -463,7 +499,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         
         self.assertEqual("elasticsearch_error", context.exception.codes[0]["code"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_create_api_key_auth_failure(self, mock_elasticsearch):
         """Test API key creation with authentication failure."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -476,7 +512,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         
         self.assertEqual("elasticsearch_error", context.exception.codes[0]["code"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_create_api_key_authorization_failure(self, mock_elasticsearch):
         """Test API key creation with authorization failure."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -491,7 +527,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
 
     # ==================== API Key Invalidation Tests ====================
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_invalidate_api_key_success(self, mock_elasticsearch):
         """Test successful API key invalidation."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -501,7 +537,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         
         mock_client.security.invalidate_api_key.assert_called_once_with(ids=["test-id"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_invalidate_api_key_not_found(self, mock_elasticsearch):
         """Test API key invalidation when key not found."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -516,7 +552,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         self.assertEqual("elasticsearch_error", context.exception.codes[0]["code"])
         mock_client.security.invalidate_api_key.assert_called_once_with(ids=["test-id"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_invalidate_api_key_auth_failure(self, mock_elasticsearch):
         """Test API key invalidation with authentication failure."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -566,7 +602,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
 
     # ==================== Integration Tests ====================
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_change_password_success(self, mock_elasticsearch):
         """Test successful password change (API key rotation)."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -599,7 +635,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         # Verify return fields were added
         self.assertGreater(len(plugin.return_fields), 0)
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_change_password_fetch_failure(self, mock_elasticsearch):
         """Test password change with API key fetch failure."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)
@@ -612,7 +648,7 @@ class ElasticsearchApiKeyTest(ElasticsearchTestBase):
         
         self.assertEqual("elasticsearch_error", context.exception.codes[0]["code"])
 
-    @patch('elasticsearch_api_key.elasticsearch_api_key.Elasticsearch')
+    @patch('elasticsearch_api_key.Elasticsearch')
     def test_change_password_create_failure(self, mock_elasticsearch):
         """Test password change with API key creation failure."""
         mock_client = self.create_mock_elasticsearch_client(mock_elasticsearch)

@@ -38,6 +38,8 @@ Example role configuration:
 }
 ```
 
+- **Elastic version > 7.16.0**
+
 ### User Record Configuration
 
 The user record must contain:
