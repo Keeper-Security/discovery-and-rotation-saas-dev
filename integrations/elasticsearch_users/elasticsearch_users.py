@@ -56,7 +56,7 @@ class SaasPlugin(SaasPluginBase):
     def config_schema(cls) -> List[SaasConfigItem]:
         """Return the configuration schema for the plugin."""
         return [
-             SaasConfigItem(
+            SaasConfigItem(
                 id="elasticsearch_url",
                 label="Elasticsearch URL",
                 desc=(
@@ -84,7 +84,7 @@ class SaasPlugin(SaasPluginBase):
                 ),
                 type="enum",
                 required=False,
-                default_value="False",
+                default_value="True",
                 enum_values=[
                     SaasConfigEnum(
                         value="False",
@@ -151,8 +151,11 @@ class SaasPlugin(SaasPluginBase):
         return str(verify_ssl_config_value) == "True"
 
     @staticmethod
-    def create_ssl_context(cert_content: Optional[str], verify_ssl: bool) -> Optional[ssl.SSLContext]:
-        """Create SSL context if custom certificate is provided and SSL verification is enabled.
+    def create_ssl_context(
+        cert_content: Optional[str], 
+        verify_ssl: bool
+    ) -> Optional[ssl.SSLContext]:
+        """Create SSL context if custom certificate and SSL verification enabled.
         
         Args:
             cert_content: The certificate content string

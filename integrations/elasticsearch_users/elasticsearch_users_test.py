@@ -1,7 +1,19 @@
 from __future__ import annotations
-import unittest
-import sys
+
+import importlib.util
 import os
+import sys
+import unittest
+from typing import Optional
+from unittest.mock import MagicMock, patch
+
+from elasticsearch.exceptions import ConnectionError as ESConnectionError
+
+from kdnrm.exceptions import SaasException
+from kdnrm.log import Log
+from kdnrm.saas_type import SaasUser
+from kdnrm.secret import Secret
+from plugin_dev.test_base import MockRecord
 
 # Add current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -11,28 +23,23 @@ try:
     from elasticsearch_users import SaasPlugin
 except ImportError:
     # Alternative import if direct import fails
-    import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "elasticsearch_users", 
+        "elasticsearch_users",
         os.path.join(os.path.dirname(__file__), "elasticsearch_users.py")
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     SaasPlugin = module.SaasPlugin
-from unittest.mock import MagicMock, patch
-from plugin_dev.test_base import MockRecord
-from kdnrm.secret import Secret
-from kdnrm.log import Log
-from kdnrm.saas_type import SaasUser
-from kdnrm.exceptions import SaasException
-from elasticsearch.exceptions import ConnectionError as ESConnectionError
-from typing import Optional
 
 
 
 # Test constants
 DEFAULT_ELASTICSEARCH_URL = "https://localhost:9200"
-DEFAULT_SSL_CERT = "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
+DEFAULT_SSL_CERT = (
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIC...\n"
+    "-----END CERTIFICATE-----"
+)
 DEFAULT_USERNAME = "testuser"
 DEFAULT_NEW_PASSWORD = "NewPassword123!"
 DEFAULT_PRIOR_PASSWORD = "OldPassword123!"
@@ -52,7 +59,13 @@ class ElasticsearchTestBase(unittest.TestCase):
         mock_elasticsearch_class.return_value = mock_client
         return mock_client
 
-    def create_user(self, username: str, new_password: str, prior_password: Optional[str] = None, fields: Optional[list] = None):
+    def create_user(
+        self, 
+        username: str, 
+        new_password: str, 
+        prior_password: Optional[str] = None, 
+        fields: Optional[list] = None
+    ):
         """Create a test user with the given parameters."""
         if fields is None:
             fields = []
@@ -68,7 +81,13 @@ class ElasticsearchTestBase(unittest.TestCase):
         """Create a MockRecord with the given config fields."""
         return MockRecord(custom=config_fields)
 
-    def create_field(self, field_type: str, label: str, value: str, is_secret: bool = False):
+    def create_field(
+        self, 
+        field_type: str, 
+        label: str, 
+        value: str, 
+        is_secret: bool = False
+    ):
         """Create a configuration field."""
         return {
             'type': 'secret' if is_secret else field_type,
@@ -81,10 +100,12 @@ class ElasticsearchUsersTestUtils:
     """Utility methods for creating test data specific to the Users plugin."""
 
     @staticmethod
-    def create_users_config_fields(elasticsearch_url: str = DEFAULT_ELASTICSEARCH_URL,
-                                   api_key: str = "test_api_key_12345",
-                                   verify_ssl: str = "False",
-                                   ssl_content: str = "") -> list:
+    def create_users_config_fields(
+        elasticsearch_url: str = DEFAULT_ELASTICSEARCH_URL,
+        api_key: str = "test_api_key_12345",
+        verify_ssl: str = "False",
+        ssl_content: str = ""
+    ) -> list:
         """Create config fields for the Users plugin."""
         return [
             {'type': 'url', 'label': 'Elasticsearch URL', 'value': [elasticsearch_url]},
@@ -96,10 +117,12 @@ class ElasticsearchUsersTestUtils:
 
 class ElasticsearchUserPluginTest(ElasticsearchTestBase):
 
-    def plugin(self,
-               prior_password: Optional[Secret] = None,
-               field_values: Optional[dict] = None,
-               username: Optional[Secret] = None):
+    def plugin(
+        self,
+        prior_password: Optional[Secret] = None,
+        field_values: Optional[dict] = None,
+        username: Optional[Secret] = None
+    ):
 
         if username is None:
             username = Secret("testuser")
@@ -119,7 +142,10 @@ class ElasticsearchUserPluginTest(ElasticsearchTestBase):
             }
 
         config_fields = ElasticsearchUsersTestUtils.create_users_config_fields(
-            elasticsearch_url=field_values.get("Elasticsearch URL", DEFAULT_ELASTICSEARCH_URL),
+            elasticsearch_url=field_values.get(
+                "Elasticsearch URL", 
+                DEFAULT_ELASTICSEARCH_URL
+            ),
             api_key=field_values.get("API Key", "test_api_key_12345"),
             verify_ssl=field_values.get("Verify SSL", "True"),
             ssl_content=field_values.get("SSL Certificate Content", "")
@@ -181,7 +207,11 @@ class ElasticsearchUserPluginTest(ElasticsearchTestBase):
             "API Key": "test_api_key_12345",
             "Elasticsearch URL": "https://localhost:9200",
             "Verify SSL": "True",
-            "SSL Certificate Content": "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
+            "SSL Certificate Content": (
+                "-----BEGIN CERTIFICATE-----\n"
+                "MIIC...\n"
+                "-----END CERTIFICATE-----"
+            )
         }
 
         with patch("elasticsearch_users.Elasticsearch") as mock_client_class:
@@ -381,7 +411,10 @@ class ElasticsearchUserPluginTest(ElasticsearchTestBase):
     def test_plugin_metadata(self):
         """Test plugin metadata."""
         self.assertEqual(SaasPlugin.name, "Elasticsearch User")
-        self.assertEqual(SaasPlugin.summary, "Change a user password in Elasticsearch.")
+        self.assertEqual(
+            SaasPlugin.summary, 
+            "Change a user password in Elasticsearch."
+        )
         self.assertEqual(SaasPlugin.readme, "README.md")
         self.assertEqual(SaasPlugin.author, "Keeper Security")
         self.assertEqual(SaasPlugin.email, "pam@keepersecurity.com")
@@ -408,8 +441,12 @@ class ElasticsearchUserPluginTest(ElasticsearchTestBase):
     def test_verify_ssl_property(self):
         """Test verify_ssl property with different values."""
         # Test with "True" value
-        field_values = {"API Key": "test", "Elasticsearch URL": "https://localhost:9200", 
-                       "Verify SSL": "True", "SSL Certificate Content": ""}
+        field_values = {
+            "API Key": "test", 
+            "Elasticsearch URL": "https://localhost:9200",
+            "Verify SSL": "True", 
+            "SSL Certificate Content": ""
+        }
         plugin = self.plugin(field_values=field_values)
         self.assertTrue(plugin.verify_ssl)
 
@@ -418,10 +455,10 @@ class ElasticsearchUserPluginTest(ElasticsearchTestBase):
         plugin = self.plugin(field_values=field_values)
         self.assertFalse(plugin.verify_ssl)
 
-        # Test with empty value
+        # Test with empty value (defaults to schema default "True")
         field_values["Verify SSL"] = ""
         plugin = self.plugin(field_values=field_values)
-        self.assertFalse(plugin.verify_ssl)
+        self.assertTrue(plugin.verify_ssl)
         
         # Test with None value (field not present)
         # Create a plugin manually without the Verify SSL field
@@ -434,19 +471,36 @@ class ElasticsearchUserPluginTest(ElasticsearchTestBase):
         # Create MockRecord without the verify_ssl field
         config_record = MockRecord(
             custom=[
-                {'type': 'secret', 'label': 'API Key', 'value': ["test_api_key_12345"]},
-                {'type': 'url', 'label': 'Elasticsearch URL', 'value': [DEFAULT_ELASTICSEARCH_URL]},
-                {'type': 'multiline', 'label': 'SSL Certificate Content', 'value': [""]},
-                # Note: No 'Verify SSL' field - it's completely missing
+                {
+                    'type': 'secret', 
+                    'label': 'API Key', 
+                    'value': ["test_api_key_12345"]
+                },
+                {
+                    'type': 'url', 
+                    'label': 'Elasticsearch URL', 
+                    'value': [DEFAULT_ELASTICSEARCH_URL]
+                },
+                {
+                    'type': 'multiline', 
+                    'label': 'SSL Certificate Content', 
+                    'value': [""]
+                },
+                # Note: No 'Verify SSL' field - defaults to True per config schema
             ]
         )
         
         plugin = SaasPlugin(user=user, config_record=config_record)
-        self.assertFalse(plugin.verify_ssl)
+        # Should be True due to default_value="True" in config schema
+        self.assertTrue(plugin.verify_ssl)
 
     def test_cert_content_property(self):
         """Test cert_content access through get_config."""
-        cert_data = "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
+        cert_data = (
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIIC...\n"
+            "-----END CERTIFICATE-----"
+        )
         field_values = {
             "API Key": "test", 
             "Elasticsearch URL": "https://localhost:9200", 
