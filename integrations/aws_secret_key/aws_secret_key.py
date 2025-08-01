@@ -4,6 +4,7 @@ import re
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import boto3
+from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 
 from kdnrm.exceptions import SaasException
@@ -81,7 +82,7 @@ class SaasPlugin(SaasPluginBase):
         
         if len(username) < 1 or len(username) > 128:
             raise SaasException(
-                "Username must be between 1 and 64 characters."
+                "Username must be between 1 and 128 characters."
             )
 
         # AWS IAM username pattern: alphanumeric and +=,.@-_
@@ -198,7 +199,7 @@ class SaasPlugin(SaasPluginBase):
         Log.debug(f"Validation successful for user: {username}, region: {aws_region}")
 
     @property
-    def client(self) -> Any:
+    def client(self) -> BaseClient:
         """Get the IAM client."""
         if self._client is None:
             aws_access_key_id = self.aws_access_key_id
@@ -320,10 +321,10 @@ class SaasPlugin(SaasPluginBase):
                 old_access_key_id = self._get_old_access_key_from_user_field()
                 if old_access_key_id is None:
                     Log.debug(
-                        f"User {username} has no old access key, no need to delete"
+                        "Old access key not found in user fields"
                     )
                     raise SaasException(
-                        f"User {username} has no old access key, no need to delete"
+                        "Old access key not found in user fields"
                     )
                 self.client.delete_access_key(
                     UserName=username, AccessKeyId=old_access_key_id
@@ -412,8 +413,6 @@ class SaasPlugin(SaasPluginBase):
                 value=Secret(new_key_info['SecretAccessKey'])
             )
         )
-
-        Log.debug(f"New access key ID: {new_key_info['AccessKeyId']}")
 
         Log.info("AWS access key rotation completed successfully")
 
