@@ -354,7 +354,7 @@ class ElasticsearchServiceAccountTokenTest(ElasticsearchTestBase):
         )
         
         # Verify return fields
-        self.assertEqual(3, len(plugin.return_fields))
+        self.assertEqual(2, len(plugin.return_fields))
         
         token_field = next((f for f in plugin.return_fields if f.label == "Service Account Token"), None)
         self.assertIsNotNone(token_field)

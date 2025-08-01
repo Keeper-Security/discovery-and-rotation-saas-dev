@@ -449,7 +449,7 @@ class SaasPlugin(SaasPluginBase):
         Log.info(f"Successfully deleted service account token '{token_name}'")
     
 
-    def _extract_token_info(self, result: dict) -> tuple[str, str]:
+    def _extract_token_info(self, result: dict) -> str:
         """Extract token name and value from API response."""
         token_info = result.get("token")
         if not token_info:
@@ -458,16 +458,15 @@ class SaasPlugin(SaasPluginBase):
                 code="missing_token_info"
             )
 
-        token_name = token_info.get("name")
         token_value = token_info.get("value")
         if not token_value:
             raise SaasException(
                 "No token value returned from Elasticsearch",
                 code="missing_token_value"
             )
-        return token_name, token_value
+        return token_value
 
-    def _add_return_fields(self, token_name: str, token_value: str) -> None:
+    def _add_return_fields(self, token_value: str) -> None:
         """Add return fields to be stored in PAM."""
         self.add_return_field(
             ReturnCustomField(
@@ -476,22 +475,8 @@ class SaasPlugin(SaasPluginBase):
                 value=Secret(token_value)
             )
         )
-
-        if token_name:
-            self.add_return_field(
-                ReturnCustomField(
-                    label="Token Name",
-                    value=Secret(token_name)
-                )
-            )
-
         namespace = self.get_config("namespace")
         service = self.get_config("service")
-        
-        # Validate inputs
-        self._validate_namespace(namespace)
-        self._validate_service(service)
-        
         self.add_return_field(
             ReturnCustomField(
                 label="Service Account",
@@ -518,8 +503,8 @@ class SaasPlugin(SaasPluginBase):
             Log.info("Service account token not found, creating new one")
         try:
             result = self._create_service_token()
-            token_name, token_value = self._extract_token_info(result)
-            self._add_return_fields(token_name, token_value)
+            token_value = self._extract_token_info(result)
+            self._add_return_fields(token_value)
 
             Log.info(
                 "Successfully created Elasticsearch service account token"
