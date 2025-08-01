@@ -101,10 +101,32 @@ Store the configuration values in a Keeper Security record of type `Login` named
 - Execute the following command to create config record in keeper vault:
     ```bash
     plugin_test config -f elasticsearch_user.py -t "Elasticsearch Configuration Record" -s "shared_folder_uid"
+
+    Required: Elasticsearch URL
+    The URL to the Elasticsearch server (e.g., https://elasticsearch.example.com:9200).
+    Enter Value : > 
+
+    Required: API Key
+    API Key for the Elasticsearch admin user.
+    Enter Value : > 
+
+    Optional: Verify SSL
+    Verify that the SSL certificate is valid: 'True' will validate certificates, 'False' will allow self-signed certificates.
+    Enter Value  (default: False): > 
+
+    Optional: SSL Certificate Content
+    CA certificate content (.crt format). Only required when 'Verify SSL' is set to 'True' and using custom certificates.
+    Enter path to read from local file.
+    Enter Value : > 
+
+
+    - Elasticsearch URL : URL of elastic search
+    - API Key : Generated the API Key from elastic search
+    - Verify SSL : Boolean value
+    - SSL Certificate Content : (.crt) file content
     ```
 
     <img src="images/plugin_test.png" width="350" alt="plugin_test">
-
 
 ### 2. Create and Add Details in New Rotation Record of type PAM User:
 - Create a record of type **PAM User** inside the Keeper Vault.
