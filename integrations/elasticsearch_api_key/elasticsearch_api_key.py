@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
+
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 from elasticsearch import Elasticsearch
@@ -118,7 +118,7 @@ class SaasPlugin(SaasPluginBase):
 
     @staticmethod
     def build_elasticsearch_client_config(
-        hosts: list,
+        hosts: List[str],
         verify_ssl: bool,
         cert_content: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -250,8 +250,8 @@ class SaasPlugin(SaasPluginBase):
             if field.label == API_KEY_ENCODED_FIELD:
                 value = field.values[0] if field.values else None
                 if isinstance(value, list):
-                    return value[0] if value else None
-                return value
+                    return value[0].strip() if value else None
+                return value.strip()
 
         raise SaasException(
             "Encoded API key is required in user fields",
@@ -338,9 +338,10 @@ class SaasPlugin(SaasPluginBase):
             ) from e
         except AuthorizationException as e:
             raise SaasException(
-                "Authorization failed while retrieving API key information. "
-                "Please ensure the user has one of the ['read_security', 'manage_api_key'] "
-                "permission assigned in their role.",
+               "Authentication failed. Please verify that:\n"
+                "1. Admin username and password are correct\n"
+                "2. The user has necessary permissions\n"
+                "3. The Elasticsearch cluster is accessible",
                 code="authorization_failed"
             ) from e
         except NotFoundError as e:
