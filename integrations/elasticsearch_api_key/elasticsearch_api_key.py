@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 from elasticsearch import Elasticsearch
@@ -29,6 +30,7 @@ API_TIMEOUT = 30
 MAX_RETRIES = 3
 PRIVILEGES_TO_PRESERVE = ["cluster", "indices", "applications", "run_as"]
 TOKEN_EXPIRATION_IN_DAYS = "30d"
+API_KEY_ENCODED_FIELD = "api_key_encoded"
 
 
 class SaasPlugin(SaasPluginBase):
@@ -207,7 +209,7 @@ class SaasPlugin(SaasPluginBase):
                 ),
                 type="enum",
                 required=False,
-                default_value="False",
+                default_value="True",
                 enum_values=[
                     SaasConfigEnum(
                         value="False",
@@ -245,7 +247,7 @@ class SaasPlugin(SaasPluginBase):
     def _get_api_key_from_user_fields(self) -> str:
         """Extract encoded API key from user fields."""
         for field in self.user.fields:
-            if field.label == "api_key_encoded":
+            if field.label == API_KEY_ENCODED_FIELD:
                 value = field.values[0] if field.values else None
                 if isinstance(value, list):
                     return value[0] if value else None
@@ -316,7 +318,7 @@ class SaasPlugin(SaasPluginBase):
     def _fetch_api_key_info(self, api_key_id: str) -> Dict[str, Any]:
         """Fetch information about an existing API key."""
         try:
-            Log.info(f"Getting API key information for ID: {api_key_id}")
+            Log.info("Getting API key information")
             response = self.client.security.get_api_key(id=api_key_id)
             
             if not response.get("api_keys"):
@@ -428,7 +430,7 @@ class SaasPlugin(SaasPluginBase):
         except BadRequestError as e:
             Log.error(f"Bad request when creating API key: {e}")
             error_msg = str(e)
-            Log.error(f"Request body that failed: {request_body}")
+            Log.error(f"Bad request when creating API key: {e}")
             raise SaasException(
                 f"Invalid request parameters: {error_msg}",
                 code="bad_request"
@@ -506,18 +508,16 @@ class SaasPlugin(SaasPluginBase):
                 )
             )
 
-
-    def change_password(self):
-        """Rotate the API key by creating a new one and invalidating the old one."""
-        Log.info("Starting Elasticsearch API key rotation")
-        if self.client:
-            pass
-        else:
-            Log.error("Failed to connect to Elasticsearch")
+    def _validate_client_connection(self):
+        if not self.client:
             raise SaasException(
                 "Failed to connect to Elasticsearch",
                 code="elasticsearch_connection_error"
             )
+    def change_password(self):
+        """Rotate the API key by creating a new one and invalidating the old one."""
+        Log.info("Starting Elasticsearch API key rotation")
+        self._validate_client_connection()
 
         try:
             current_encoded_api_key = self._get_api_key_from_user_fields()

@@ -108,7 +108,7 @@ The plugin expects the current API key stored in the **PamUser** record within K
 3. **Admin Password** (Required, Secret)
    - Password for basic authentication
 
-4. **Verify SSL** (Optional, Default: False)
+4. **Verify SSL** (Optional, Default: True)
    - `True`: Validate SSL certificates
    - `False`: Skip validation
 
