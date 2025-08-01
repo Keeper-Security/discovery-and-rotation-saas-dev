@@ -111,11 +111,12 @@ class SaasPlugin(SaasPluginBase):
         if not region:
             raise SaasException("AWS region cannot be empty.")
         
-        # AWS region pattern: us-east-1, eu-west-2, etc.
-        if not re.match(r'^[a-z]+-[a-z]+-[0-9]+$', region):
+        # AWS region pattern: us-east-1, eu-west-2, us-gov-west-1, etc.
+        # Supports both standard regions and GovCloud regions
+        if not re.match(r'^[a-z]+(-[a-z]+)+-[0-9]+$', region):
             raise SaasException(
                 f"Invalid AWS region format: {region}. "
-                f"Expected format: us-east-1"
+                f"Expected format: us-east-1 or us-gov-west-1"
             )
 
     @property
@@ -178,6 +179,24 @@ class SaasPlugin(SaasPluginBase):
             return session
         return None
 
+    @staticmethod
+    def _get_error_code(error: ClientError) -> str:
+        """Safely extract error code from ClientError."""
+        return error.response.get("Error", {}).get("Code", "Unknown")
+
+    def _validate_and_initialize(self) -> None:
+        """Validate all prerequisites and initialize AWS client."""
+        # Validate configuration
+        username = self.iam_username  # This will validate username
+        aws_region = self.aws_region  # This will validate region
+        
+        # Initialize client (this will validate credentials/session)
+        client = self.client
+        if client is None:
+            raise SaasException("AWS client is not initialized")
+        
+        Log.debug(f"Validation successful for user: {username}, region: {aws_region}")
+
     @property
     def client(self) -> Any:
         """Get the IAM client."""
@@ -234,7 +253,7 @@ class SaasPlugin(SaasPluginBase):
             self.client.get_user(UserName=username)
             return True
         except ClientError as err:
-            if err.response["Error"]["Code"] == "NoSuchEntity":
+            if self._get_error_code(err) == "NoSuchEntity":
                 return False
             else:
                 Log.error(f"Error checking if user exists: {err}")
@@ -248,10 +267,11 @@ class SaasPlugin(SaasPluginBase):
             response = self.client.list_access_keys(UserName=username)
             return response['AccessKeyMetadata']
         except ClientError as err:
-            if err.response["Error"]["Code"] == "NoSuchEntity":
+            error_code = self._get_error_code(err)
+            if error_code == "NoSuchEntity":
                 Log.error(f"User {username} does not exist")
                 raise SaasException(f"User {username} does not exist") from err
-            elif err.response["Error"]["Code"] == "AccessDenied":
+            elif error_code == "AccessDenied":
                 Log.error(f"Access denied for user {username}: {err}")
                 raise SaasException(
                     f"Access denied for user {username}."
@@ -276,7 +296,8 @@ class SaasPlugin(SaasPluginBase):
                 'SecretAccessKey': access_key['SecretAccessKey']
             }
         except ClientError as err:
-            if err.response["Error"]["Code"] == "LimitExceeded":
+            error_code = self._get_error_code(err)
+            if error_code == "LimitExceeded":
                 Log.error(
                     f"access key limit exceeded for user {username}: {err}"
                 )
@@ -312,16 +333,17 @@ class SaasPlugin(SaasPluginBase):
                     f"for user {username}"
                 )
         except ClientError as err:
-            if err.response["Error"]["Code"] == "NoSuchEntity":
+            error_code = self._get_error_code(err)
+            if error_code == "NoSuchEntity":
                 Log.warning(
                     f"access key {old_access_key_id or 'unknown'} not found "
                     f"for user {username}"
                 )
-            elif err.response["Error"]["Code"] == "LimitExceeded":
+            elif error_code == "LimitExceeded":
                 Log.error(
                     f"access key limit exceeded for user {username}: {err}"
                 )
-            elif err.response["Error"]["Code"] == "ServiceFailure":
+            elif error_code == "ServiceFailure":
                 Log.error(f"service failure for user {username}: {err}")
                 raise SaasException(
                     f"Service failure for user {username}."
@@ -358,8 +380,10 @@ class SaasPlugin(SaasPluginBase):
 
     def change_password(self):
         """Rotate the AWS access key - create new key and delete old one."""
-        username = self.iam_username
+        # Validate all prerequisites and initialize client
+        self._validate_and_initialize()
         
+        username = self.iam_username
         Log.info(f"Starting AWS access key rotation for user: {username}")
         
         # Check if user exists
