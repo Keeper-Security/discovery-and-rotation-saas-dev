@@ -1,22 +1,32 @@
 from __future__ import annotations
-from kdnrm.saas_plugins import SaasPluginBase
-from kdnrm.saas_type import SaasConfigItem, ReturnCustomField, SaasConfigEnum
+
+import re
+import ssl
+from typing import Any, List, Optional, TYPE_CHECKING
+from urllib.parse import urlparse
+
+from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import (
+    AuthenticationException,
+    ConflictError,
+    NotFoundError
+)
+
 from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
+from kdnrm.saas_plugins import SaasPluginBase
+from kdnrm.saas_type import ReturnCustomField, SaasConfigEnum, SaasConfigItem
 from kdnrm.secret import Secret
-import re
-from typing import List, TYPE_CHECKING, Optional
-from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import NotFoundError, ConflictError, AuthenticationException
-from urllib.parse import urlparse
-import ssl
 
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
     from keeper_secrets_manager_core.dto.dtos import Record
 
-API_TIMEOUT = 30
-MAX_RETRIES = 3
+# Constants
+DEFAULT_SSL_VERIFY = True  # Change default
+MAX_TOKEN_NAME_LENGTH = 256
+API_TIMEOUT_SECONDS = 30
+MAX_API_RETRIES = 3
 
 
 class SaasPlugin(SaasPluginBase):
@@ -27,7 +37,13 @@ class SaasPlugin(SaasPluginBase):
     author = "Keeper Security"
     email = "pam@keepersecurity.com"
 
-    def __init__(self, user, config_record, provider_config=None, force_fail=False):
+    def __init__(
+        self, 
+        user, 
+        config_record, 
+        provider_config=None, 
+        force_fail=False
+    ):
         super().__init__(user, config_record, provider_config, force_fail)
         self._client = None
 
@@ -70,8 +86,11 @@ class SaasPlugin(SaasPluginBase):
         return str(verify_ssl_config_value) == "True"
 
     @staticmethod
-    def create_ssl_context(cert_content: Optional[str], verify_ssl: bool) -> Optional[ssl.SSLContext]:
-        """Create SSL context if custom certificate is provided and SSL verification is enabled.
+    def create_ssl_context(
+        cert_content: Optional[str], 
+        verify_ssl: bool
+    ) -> Optional[ssl.SSLContext]:
+        """Create SSL context if custom certificate and SSL verification enabled.
         
         Args:
             cert_content: The certificate content string
@@ -105,8 +124,8 @@ class SaasPlugin(SaasPluginBase):
         cert_content: Optional[str] = None,
         api_key: Optional[str] = None,
         basic_auth: Optional[tuple] = None,
-        request_timeout: int = 30,
-        max_retries: int = 3
+        request_timeout: int = API_TIMEOUT_SECONDS,
+        max_retries: int = MAX_API_RETRIES
     ) -> dict:
         """Build configuration dictionary for Elasticsearch client.
         
@@ -170,7 +189,10 @@ class SaasPlugin(SaasPluginBase):
             SaasConfigItem(
                 id="api_key",
                 label="API Key",
-                desc="Elasticsearch API key for authentication. Must have manage_service_account cluster privilege.",
+                desc=(
+                    "Elasticsearch API key for authentication. "
+                    "Must have manage_service_account cluster privilege."
+                ),
                 is_secret=True,
                 required=True
             ),
@@ -184,7 +206,10 @@ class SaasPlugin(SaasPluginBase):
             SaasConfigItem(
                 id="service",
                 label="Service Account Service",
-                desc="The service name of the service account (e.g., 'fleet-server', 'kibana').",
+                desc=(
+                    "The service name of the service account "
+                    "(e.g., 'fleet-server', 'kibana')."
+                ),
                 required=True
             ),
             SaasConfigItem(
@@ -197,7 +222,7 @@ class SaasPlugin(SaasPluginBase):
                 ),
                 type="enum",
                 required=False,
-                default_value="False",
+                default_value="True",
                 enum_values=[
                     SaasConfigEnum(
                         value="False",
@@ -245,9 +270,9 @@ class SaasPlugin(SaasPluginBase):
 
     def _validate_token_name(self, token_name: str) -> None:
         """Validate token name according to Elasticsearch requirements."""
-        if not token_name or len(token_name) < 1 or len(token_name) > 256:
+        if not token_name or len(token_name) < 1 or len(token_name) > MAX_TOKEN_NAME_LENGTH:
             raise SaasException(
-                "Token name must be between 1 and 256 characters",
+                f"Token name must be between 1 and {MAX_TOKEN_NAME_LENGTH} characters",
                 code="invalid_token_name"
             )
 
@@ -263,19 +288,48 @@ class SaasPlugin(SaasPluginBase):
                 code="invalid_token_name"
             )
 
+    def _validate_namespace(self, namespace: str) -> None:
+        """Validate service account namespace format."""
+        if not namespace:
+            raise SaasException(
+                "Namespace is required",
+                code="namespace_required"
+            )
+        
+        if not re.match(r'^[a-z][a-z0-9_-]*$', namespace):
+            raise SaasException(
+                "Invalid namespace format",
+                code="invalid_namespace"
+            )
+
+    def _validate_service(self, service: str) -> None:
+        """Validate service account service name format."""
+        if not service:
+            raise SaasException(
+                "Service name is required",
+                code="service_required"
+            )
+        
+        if not re.match(r'^[a-z][a-z0-9_-]*$', service):
+            raise SaasException(
+                "Invalid service name format",
+                code="invalid_service"
+            )
+
+    def _get_token_name_from_fields(self, fields: List[Any]) -> Optional[str]:
+        """Extract token name from user fields with proper type handling."""
+        for field in fields:
+            if field.label == "token_name" and field.values:
+                value = field.values[0]
+                return (
+                    value[0] if isinstance(value, list) and value else value
+                )
+        return None
+
     def _get_token_name(self) -> str:
         """Get the token name from the user fields."""
-        fields = self.user.fields
-        token_name = None
-        for field in fields:
-            if field.label == "token_name":
-                value = field.values[0] if field.values else None
-                if isinstance(value, list):
-                    token_name = value[0] if value else None
-                else:
-                    token_name = value
-                break
-
+        token_name = self._get_token_name_from_fields(self.user.fields)
+        
         if not token_name:
             raise SaasException(
                 "Token name is required",
@@ -302,8 +356,8 @@ class SaasPlugin(SaasPluginBase):
                     verify_ssl=self.verify_ssl,
                     cert_content=cert_content,
                     api_key=api_key,
-                    request_timeout=API_TIMEOUT,
-                    max_retries=MAX_RETRIES
+                    request_timeout=API_TIMEOUT_SECONDS,
+                    max_retries=MAX_API_RETRIES
                 )
 
                 self._client = Elasticsearch(**client_config)
@@ -312,7 +366,7 @@ class SaasPlugin(SaasPluginBase):
 
             except AuthenticationException as ae:
                 raise SaasException(
-                    "Authentication failed. Verify API key is correct",
+                    "Authentication failed, make sure the credentials are correct",
                     code="authentication_failed"
                 ) from ae
             except Exception as e:
@@ -331,8 +385,15 @@ class SaasPlugin(SaasPluginBase):
         namespace = self.get_config("namespace")
         service = self.get_config("service")
         token_name = self._get_token_name()
+        
+        # Validate all inputs
+        self._validate_namespace(namespace)
+        self._validate_service(service)
         self._validate_token_name(token_name)
-        Log.info(f"Creating service account token '{token_name}' for {namespace}/{service}")
+        Log.info(
+            f"Creating service account token '{token_name}' "
+            f"for {namespace}/{service}"
+        )
         try:
             response = self.client.security.create_service_token(
                 namespace=namespace,
@@ -371,7 +432,15 @@ class SaasPlugin(SaasPluginBase):
         namespace = self.get_config("namespace")
         service = self.get_config("service")
         token_name = self._get_token_name()
-        Log.info(f"Deleting service account token '{token_name}' for {namespace}/{service}")
+        
+        # Validate all inputs
+        self._validate_namespace(namespace)
+        self._validate_service(service)
+        self._validate_token_name(token_name)
+        Log.info(
+            f"Deleting service account token '{token_name}' "
+            f"for {namespace}/{service}"
+        )
         self.client.security.delete_service_token(
             namespace=namespace,
             service=service,
@@ -418,6 +487,11 @@ class SaasPlugin(SaasPluginBase):
 
         namespace = self.get_config("namespace")
         service = self.get_config("service")
+        
+        # Validate inputs
+        self._validate_namespace(namespace)
+        self._validate_service(service)
+        
         self.add_return_field(
             ReturnCustomField(
                 label="Service Account",
@@ -447,17 +521,21 @@ class SaasPlugin(SaasPluginBase):
             token_name, token_value = self._extract_token_info(result)
             self._add_return_fields(token_name, token_value)
 
-            Log.info("Successfully created Elasticsearch service account token")
+            Log.info(
+                "Successfully created Elasticsearch service account token"
+            )
 
         except SaasException:
             raise
         except Exception as e:
             Log.error(f"Unexpected error creating service account token: {e}")
-            raise SaasException(f"Unexpected error: {e}", code="unexpected_error") from e
+            raise SaasException(
+                f"Unexpected error: {e}", 
+                code="unexpected_error"
+            ) from e
 
     def rollback_password(self):
         """
         Service account tokens cannot be rolled back since they are created fresh each time.
         """
         Log.warning("Rollback not supported for service account tokens")
-        pass
