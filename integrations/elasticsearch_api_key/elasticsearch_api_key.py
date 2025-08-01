@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import base64
-
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+import ssl
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from urllib.parse import urlparse
 
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import (
@@ -13,13 +14,11 @@ from elasticsearch.exceptions import (
     NotFoundError
 )
 
-from kdnrm.saas_plugins import SaasPluginBase
-from kdnrm.saas_type import SaasConfigItem, ReturnCustomField, SaasConfigEnum
 from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
+from kdnrm.saas_plugins import SaasPluginBase
+from kdnrm.saas_type import ReturnCustomField, SaasConfigEnum, SaasConfigItem
 from kdnrm.secret import Secret
-from urllib.parse import urlparse
-import ssl
 
 if TYPE_CHECKING:  # pragma: no cover
     from kdnrm.saas_type import SaasUser
@@ -42,7 +41,13 @@ class SaasPlugin(SaasPluginBase):
     author = "Keeper Security"
     email = "pam@keepersecurity.com"
 
-    def __init__(self, user, config_record, provider_config=None, force_fail=False):
+    def __init__(
+        self, 
+        user, 
+        config_record, 
+        provider_config=None, 
+        force_fail=False
+    ):
         """Initialize the plugin."""
         super().__init__(user, config_record, provider_config, force_fail)
         self._client = None
@@ -88,8 +93,11 @@ class SaasPlugin(SaasPluginBase):
         return str(verify_ssl_config_value) == "True"
 
     @staticmethod
-    def create_ssl_context(cert_content: Optional[str], verify_ssl: bool) -> Optional[ssl.SSLContext]:
-        """Create SSL context if custom certificate is provided and SSL verification is enabled.
+    def create_ssl_context(
+        cert_content: Optional[str], 
+        verify_ssl: bool
+    ) -> Optional[ssl.SSLContext]:
+        """Create SSL context if custom certificate and SSL verification enabled.
         
         Args:
             cert_content: The certificate content string
@@ -182,7 +190,10 @@ class SaasPlugin(SaasPluginBase):
             SaasConfigItem(
                 id="elasticsearch_url",
                 label="Elasticsearch URL",
-                desc="The URL to the Elasticsearch cluster. Example: https://elasticsearch.example.com:9200",
+                desc=(
+                    "The URL to the Elasticsearch cluster. "
+                    "Example: https://elasticsearch.example.com:9200"
+                ),
                 type="url",
                 required=True
             ),
@@ -368,7 +379,9 @@ class SaasPlugin(SaasPluginBase):
 
             for role_name, role_def in role_descriptors.items():
                 if not isinstance(role_def, dict):
-                    Log.warning(f"Skipping invalid role '{role_name}': not a dictionary")
+                    Log.warning(
+                        f"Skipping invalid role '{role_name}': not a dictionary"
+                    )
                     continue
 
                 cleaned_role = self._extract_valid_privileges(role_def)
@@ -402,8 +415,12 @@ class SaasPlugin(SaasPluginBase):
 
         return cleaned_role
 
-    def _create_new_api_key(self, name: str, role_descriptors: Optional[Dict] = None,
-                           expiration: Optional[str] = None) -> Dict[str, Any]:
+    def _create_new_api_key(
+        self, 
+        name: str, 
+        role_descriptors: Optional[Dict] = None,
+        expiration: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Create a new API key with specified parameters."""
         Log.info(f"Creating API key '{name}'")
         
@@ -451,8 +468,12 @@ class SaasPlugin(SaasPluginBase):
                 code="elasticsearch_error"
             ) from e
 
-    def _build_api_key_request(self, name: str, role_descriptors: Optional[Dict],
-                              expiration: Optional[str]) -> Dict[str, Any]:
+    def _build_api_key_request(
+        self, 
+        name: str, 
+        role_descriptors: Optional[Dict],
+        expiration: Optional[str]
+    ) -> Dict[str, Any]:
         """Build the request body for API key creation."""
         request_body = {"name": name}
         
