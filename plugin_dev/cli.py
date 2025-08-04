@@ -350,7 +350,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
             getattr(user_record, "_update")()
             sm.save(user_record)
 
-            print(f"{Fore.GREEN} {operation_type.capitalize()} Rotation was successful{Style.RESET_ALL}")
+            print(f"{Fore.GREEN} {operation_type.upper()} Rotation was successful{Style.RESET_ALL}")
 
         except Exception as err:
             Log.traceback(err)
