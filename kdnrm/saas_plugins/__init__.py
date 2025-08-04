@@ -180,3 +180,17 @@ class SaasPluginBase:
         """
 
         pass
+
+    def rotate_api_key(self):
+        """
+        Perform the API key rotation.
+        """
+
+        pass
+
+    def rollback_api_key(self):
+        """
+        Attempt to revert the API key after a failure.
+        """
+
+        pass

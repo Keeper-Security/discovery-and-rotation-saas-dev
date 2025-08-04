@@ -21,7 +21,9 @@ if TYPE_CHECKING:
 
 
 def load_module_from_path(module_name, file_path):
-
+    """
+    Load a module from a file path.
+    """
     if os.path.exists(file_path) is False:
         raise Exception(f"The plugin {file_path} does not exist.")
 
@@ -224,6 +226,33 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
         if new_password is None:
             new_password = generate_password()
 
+        # Determine operation type early to handle password field correctly
+        module = load_module_from_path("test_plugin", file)
+        plugin_class = getattr(module, "SaasPlugin")
+        
+        # Check if methods are actually implemented in the plugin class (not just inherited)
+        def _has_real_implementation(class_obj, method_name):
+            """Check if method is actually implemented (not inherited empty method)."""
+            if method_name not in class_obj.__dict__:
+                return False
+            method = getattr(class_obj, method_name)
+            if not callable(method):
+                return False
+            # Additional check: ensure it's not just a lambda that returns None
+            if hasattr(method, '__name__') and method.__name__ == '<lambda>':
+                # Could add more sophisticated lambda checking here
+                pass
+            return True
+
+        has_rotate_api_key = _has_real_implementation(plugin_class, 'rotate_api_key')
+        has_change_password = _has_real_implementation(plugin_class, 'change_password')
+
+        if has_rotate_api_key:
+            operation_type = "api_key"
+        elif has_change_password:
+            operation_type = "password"
+        else:
+            raise Exception("Plugin must implement either 'rotate_api_key()' or 'change_password()' method")
         try:
             fields = []
             for field in user_record.dict.get("custom", []):
@@ -235,29 +264,46 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                     )
                 )
 
-            if old_password is None:
-                old_password = user_record.get_standard_field_value("password", single=True),
-            if no_old_password is True:
-                old_password = None
+            # Handle different operation types with different field requirements
+            if operation_type == "password":
+                # For password rotation: fetch standard fields (login, password)
+                if old_password is None:
+                    old_password = user_record.get_standard_field_value("password", single=True)
+                if no_old_password is True:
+                    old_password = None
 
-            user = SaasUser(
-                username=Secret(user_record.get_standard_field_value("login", single=True)),
-                new_password=Secret(new_password) if new_password is not None else None,
-                prior_password=Secret(old_password),
-                fields=fields
-            )
+                user = SaasUser(
+                    username=Secret(user_record.get_standard_field_value("login", single=True)),
+                    new_password=Secret(new_password) if new_password is not None else None,
+                    prior_password=Secret(old_password) if old_password is not None else None,
+                    fields=fields
+                )
+            else:
+                # For API key rotation: only use custom fields, no standard fields
+                user = SaasUser(
+                    username=Secret(None),
+                    new_password=Secret(None),
+                    prior_password=Secret(None),
+                    fields=fields
+                )
         except Exception as err:
-            raise Exception(f"Cannot get value from PAM USer record: {err}")
+            raise Exception(f"Cannot get value from PAM User record: {err}")
 
-        module = load_module_from_path("test_plugin", file)
-        plugin = getattr(module, "SaasPlugin")(
+        plugin = plugin_class(
             user=user,
             config_record=config_record,
             provider_config=provider_config,
             force_fail=fail
         )
+        
         try:
-            plugin.change_password()
+            # Execute the appropriate operation based on detected functionality
+            if operation_type == "api_key":
+                Log.debug("Plugin supports rotate_api_key functionality")
+                plugin.rotate_api_key()
+            elif operation_type == "password":
+                Log.debug("Plugin supports change_password functionality")
+                plugin.change_password()
 
             if plugin.force_fail is True:
                 raise Exception("FORCE FAIL FLAG SET")
@@ -268,7 +314,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                 fields = []
                 for item in plugin.return_fields:
                     value = Secret.get_value(item.value) or ""
-                    Log.debug(f"setting the return custom field '{item.label}' to value '{value}'")
+                    Log.debug(f"setting the return custom field '{item.label}'")
                     fields.append({
                         "type": item.type,
                         "label": item.label,
@@ -291,11 +337,20 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                         user_record.dict["custom"].append(field)
 
             Log.debug("updating the user record.")
-            user_record.set_standard_field_value("password", new_password)
+            
+            # Handle different types of operations
+            if operation_type == "password":
+                user_record.set_standard_field_value("password", new_password)
+            elif operation_type == "api_key":
+                # For API key rotation, use set_custom_field_values for any additional fields
+                if hasattr(plugin, 'set_custom_field_values') and callable(getattr(plugin, 'set_custom_field_values')):
+                    Log.debug("Setting custom field values for API key rotation")
+                    plugin.set_custom_field_values(user_record)
+        
             getattr(user_record, "_update")()
             sm.save(user_record)
 
-            print(f"{Fore.GREEN}Rotation was successful{Style.RESET_ALL}")
+            print(f"{Fore.GREEN} {operation_type.capitalize()} Rotation was successful{Style.RESET_ALL}")
 
         except Exception as err:
             Log.traceback(err)
@@ -303,13 +358,22 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
 
             if plugin.can_rollback is True:
                 try:
-                    plugin.rollback_password()
+                    # Check which rollback method to use based on operation type
+                    if operation_type == "api_key" and hasattr(plugin, 'rollback_api_key') and callable(getattr(plugin, 'rollback_api_key')):
+                        Log.debug("Rolling back API key rotation")
+                        plugin.rollback_api_key()
+                    elif operation_type == "password" and hasattr(plugin, 'rollback_password') and callable(getattr(plugin, 'rollback_password')):
+                        Log.debug("Rolling back password rotation")
+                        plugin.rollback_password()
+                    else:
+                        Log.debug("No rollback method found, implementing rollback_password or rollback_api_key method")
                     print(f"{Fore.YELLOW}Rotation failed, Rollback was successful{Style.RESET_ALL}")
-                except Exception as err:
-                    Log.traceback(err)
+                except Exception as rollback_err:
+                    Log.traceback(rollback_err)
                     print(f"{Fore.RED}Rotation and rollback were NOT successful{Style.RESET_ALL}")
             else:
-                Log.info("the plugin cannot rollback/revert the password")
+                operation_name = "API key" if operation_type == "api_key" else "password"
+                Log.info(f"the plugin cannot rollback/revert the {operation_name}")
                 print(f"{Fore.RED}Rotation was NOT successful{Style.RESET_ALL}")
 
     except Exception as err:
@@ -321,7 +385,10 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
         trc = 'Traceback (most recent call last):\n'
         msg = trc + ''.join(traceback.format_list(stack))
         if exc is not None:
-            msg += '  ' + traceback.format_exc().lstrip(trc)
+            formatted_exc = traceback.format_exc()
+            if formatted_exc.startswith(trc):
+                formatted_exc = formatted_exc[len(trc):]
+            msg += '  ' + formatted_exc
         print(msg)
         print(f"{Fore.RED}TEST ENV ERROR: {err}{Style.RESET_ALL}")
 
