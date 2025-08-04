@@ -49,7 +49,7 @@ class SaasPlugin(SaasPluginBase):
                 id="client_id",
                 label="Client ID",
                 desc="AWS Access Key ID for authentication.",
-                required=False
+                required=True
             ),
             SaasConfigItem(
                 id="client_secret",
@@ -379,7 +379,7 @@ class SaasPlugin(SaasPluginBase):
         """Add a return field to be stored in PAM user record."""
         self.return_fields.append(field)
 
-    def change_password(self):
+    def rotate_api_key(self):
         """Rotate the AWS access key - create new key and delete old one."""
         # Validate all prerequisites and initialize client
         self._validate_and_initialize()
@@ -416,6 +416,6 @@ class SaasPlugin(SaasPluginBase):
 
         Log.info("AWS access key rotation completed successfully")
 
-    def rollback_password(self):
+    def rollback_api_key(self):
         """Rollback access key rotation (not supported)."""
         Log.info("Rollback is not supported")
