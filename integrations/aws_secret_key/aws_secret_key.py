@@ -49,7 +49,7 @@ class SaasPlugin(SaasPluginBase):
                 id="client_id",
                 label="Client ID",
                 desc="AWS Access Key ID for authentication.",
-                required=False
+                required=True
             ),
             SaasConfigItem(
                 id="client_secret",
