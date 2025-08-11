@@ -21,8 +21,19 @@ if TYPE_CHECKING:
 
 
 def load_module_from_path(module_name, file_path):
-
-    if os.path.exists(file_path) is False:
+    """Load a module from a file path.
+    
+    Args:
+        module_name: Name to assign to the loaded module
+        file_path: Path to the Python file to load
+        
+    Returns:
+        The loaded module object
+        
+    Raises:
+        Exception: If the plugin file does not exist
+    """
+    if not os.path.exists(file_path):
         raise Exception(f"The plugin {file_path} does not exist.")
 
     spec = importlib.util.spec_from_file_location(module_name, file_path)
@@ -32,7 +43,14 @@ def load_module_from_path(module_name, file_path):
 
 
 def _get_field_value(item: SaasConfigItem) -> dict:
-
+    """Get field value from user input with proper formatting.
+    
+    Args:
+        item: SaaS configuration item containing field metadata
+        
+    Returns:
+        Dictionary containing field configuration for Keeper
+    """
     req = f"{Fore.RED}Required:{Style.RESET_ALL}"
     if not item.required:
         req = f"{Fore.BLUE}Optional:{Style.RESET_ALL}"
@@ -47,7 +65,7 @@ def _get_field_value(item: SaasConfigItem) -> dict:
     value = input(f"Enter Value {default}: > ")
 
     if os.path.exists(value):
-        with open(value, "r") as fh:
+        with open(value, "r", encoding="utf-8") as fh:
             value = fh.read()
 
     field_type = item.type
@@ -70,12 +88,20 @@ def _get_field_value(item: SaasConfigItem) -> dict:
 
 
 @click.command(name="config")
-@click.option('--file', '-f', type=str, help='Plugin python file', required=True)
-@click.option('--shared-folder-uid', '-s', type=str, help='Shared folder UID', required=True)
-@click.option('--title', '-t', type=str, help='SaaS config record tile', required=True)
-@click.option('--config', type=str, help='KSM configuration file', required=False)
+@click.option('--file', '-f', type=str, help='Plugin python file', 
+              required=True)
+@click.option('--shared-folder-uid', '-s', type=str, 
+              help='Shared folder UID', required=True)
+@click.option('--title', '-t', type=str, 
+              help='SaaS config record tile', required=True)
+@click.option('--config', type=str, help='KSM configuration file', 
+              required=False)
 def config_command(file, shared_folder_uid, title, config):
-    """Create a config file"""
+    """Create a configuration record in Keeper vault.
+    
+    This command creates a new configuration record in the specified shared
+    folder with the plugin configuration parameters.
+    """
 
     Log()
     Log.set_log_level("INFO")
@@ -112,22 +138,34 @@ def config_command(file, shared_folder_uid, title, config):
     new_record.custom = fields
     record_uid = sm.create_secret(shared_folder_uid, new_record)
 
-    print(f"{Fore.GREEN}Configuration record UID is {record_uid}{Style.RESET_ALL}")
+    record_uid_msg = (f"{Fore.GREEN}Configuration record UID is "
+                       f"{record_uid}{Style.RESET_ALL}")
+    print(record_uid_msg)
 
 
 @click.command(name="run")
-@click.option('--file', '-f', type=str, help='Plugin python file', required=True)
-@click.option('--user-uid', '-u', type=str, help='UID of PAM User record', required=True)
-@click.option('--plugin-config-uid', '-c', type=str, help='UID of plugin config record', required=True)
-@click.option('--configuration-uid', type=str, help='UID of configuration record', required=False)
+@click.option('--file', '-f', type=str, help='Plugin python file', 
+              required=True)
+@click.option('--user-uid', '-u', type=str, 
+              help='UID of PAM User record', required=True)
+@click.option('--plugin-config-uid', '-c', type=str, 
+              help='UID of plugin config record', required=True)
+@click.option('--configuration-uid', type=str, 
+              help='UID of configuration record', required=False)
 @click.option('--fail', is_flag=True, help="Force run to fail")
-@click.option('--new-password',  type=str, help="New password")
-@click.option('--old-password',  type=str, help="Old password")
-@click.option('--no-old-password', is_flag=True, help="Do not use old password")
-@click.option('--config', type=str, help='KSM configuration file', required=False)
-def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_password, old_password,
-                no_old_password, config):
-    """Run the plugin"""
+@click.option('--new-password', type=str, help="New password")
+@click.option('--old-password', type=str, help="Old password")
+@click.option('--no-old-password', is_flag=True, 
+              help="Do not use old password")
+@click.option('--config', type=str, help='KSM configuration file', 
+              required=False)
+def run_command(file, user_uid, plugin_config_uid, configuration_uid, 
+                fail, new_password, old_password, no_old_password, config):
+    """Run the plugin to perform password or API key rotation.
+    
+    This command executes the plugin's rotation functionality based on what
+    methods the plugin implements (rotate_api_key or change_password).
+    """
 
     Log()
     Log.set_log_level("DEBUG")
@@ -161,37 +199,66 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
 
         records = sm.get_secrets(uids)
 
-        user_record = next((x for x in records if x.uid == user_uid), None)  # type: Record
-        config_record = next((x for x in records if x.uid == plugin_config_uid), None)  # type: Record
+        user_record = next(
+            (x for x in records if x.uid == user_uid), None
+        )  # type: Record
+        config_record = next(
+            (x for x in records if x.uid == plugin_config_uid), None
+        )  # type: Record
 
         provider_config = None
-        provider_record = next((x for x in records if x.uid == configuration_uid), None)  # type: Record
+        provider_record = next(
+            (x for x in records if x.uid == configuration_uid), None
+        )  # type: Record
         if provider_record is not None:
             if provider_record.type == "pamAwsConfiguration":
+                aws_access_key_id = _gfv(provider_record, "pamawsaccesskeyid", 
+                                        True)
+                aws_secret_access_key = _gfv(provider_record, 
+                                           "pamawsaccesssecretkey", True)
+                region_names = _gfv(provider_record, "pamawsregionname")
+                
                 provider_config = AwsConfig(
-                    aws_access_key_id=_gfv(provider_record, "pamawsaccesskeyid", True),
-                    aws_secret_access_key=_gfv(provider_record, "pamawsaccesssecretkey", True),
-                    region_names=_gfv(provider_record, "pamawsregionname"),
+                    aws_access_key_id=aws_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key,
+                    region_names=region_names,
                 )
             elif provider_record.type == "pamAzureConfiguration":
-                resource_groups_str = _gfv(provider_record, "pamazureresourcegroup")
-                resource_groups = [x.strip() for x in resource_groups_str.split("\n")]
+                resource_groups_str = _gfv(provider_record, 
+                                          "pamazureresourcegroup")
+                resource_groups = [
+                    x.strip() for x in resource_groups_str.split("\n")
+                ]
 
+                subscription_id = _gfv(provider_record, 
+                                     "pamazuresubscriptionid", True)
+                tenant_id = _gfv(provider_record, "pamazuretenantid", True)
+                application_id = _gfv(provider_record, "pamazureclientid", 
+                                    True)
+                client_secret = _gfv(provider_record, "pamazureclientsecret", 
+                                   True)
+                authority = _gfv(provider_record, "Azure Authority FQDN")
+                graph_endpoint = _gfv(provider_record, "Azure Graph Endpoint")
+                
                 provider_config = AzureConfig(
-                    subscription_id=_gfv(provider_record, "pamazuresubscriptionid", True),
-                    tenant_id=_gfv(provider_record, "pamazuretenantid", True),
-                    application_id=_gfv(provider_record, "pamazureclientid", True),
-                    client_secret=_gfv(provider_record, "pamazureclientsecret", True),
+                    subscription_id=subscription_id,
+                    tenant_id=tenant_id,
+                    application_id=application_id,
+                    client_secret=client_secret,
                     resource_groups=resource_groups,
-                    authority=_gfv(provider_record, "Azure Authority FQDN"),
-                    graph_endpoint=_gfv(provider_record, "Azure Graph Endpoint"),
+                    authority=authority,
+                    graph_endpoint=graph_endpoint,
                 )
 
             # Cannot do the domain controller fully.
             # We need to graph to get the admin user.
             elif provider_record.type == "pamDomainConfiguration":
-                Log.warning("currently cannot get the admin credentials for the domain controller.")
-                host_and_port = _gfv(provider_record, "pamazuresubscriptionid", True),
+                Log.warning(
+                    "currently cannot get the admin credentials for the "
+                    "domain controller."
+                )
+                host_and_port = _gfv(provider_record, 
+                                   "pamazuresubscriptionid", True)
                 if host_and_port is None:
                     host_and_port = {}
                 hostname = host_and_port.get("hostName")
@@ -201,20 +268,19 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                 except (Exception,):
                     pass
 
+                use_ssl = value_to_boolean(_gfv(provider_record, "useSSL"))
                 provider_config = DomainConfig(
                     hostname=hostname,
                     port=port,
                     username=Secret("Cannot get value"),
                     dn=Secret("Cannot get value"),
                     password=Secret("Cannot get value"),
-                    use_ssl=value_to_boolean(_gfv(provider_record, "useSSL")),
+                    use_ssl=use_ssl,
                 )
             elif provider_record.type == "pamNetworkConfiguration":
                 cidrs_str = _gfv(provider_record, "pamnetworkcidr")
                 cidrs = [x.strip() for x in cidrs_str.split("\n")]
-                provider_config = NetworkConfig(
-                    cidrs=cidrs
-                )
+                provider_config = NetworkConfig(cidrs=cidrs)
 
         if user_record is None:
             raise Exception("Could not get the user record.")
@@ -224,6 +290,45 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
         if new_password is None:
             new_password = generate_password()
 
+        # Determine operation type early to handle password field correctly
+        module = load_module_from_path("test_plugin", file)
+        plugin_class = getattr(module, "SaasPlugin")
+        
+        # Check if methods are actually implemented in the plugin class 
+        # (not just inherited)
+        def _has_real_implementation(class_obj, method_name):
+            """Check if method is actually implemented.
+            
+            This ensures the method is defined in the plugin class itself,
+            not just inherited as an empty method from the parent class.
+            
+            Args:
+                class_obj: The plugin class to check
+                method_name: Name of the method to verify
+                
+            Returns:
+                True if method is implemented in the class, False otherwise
+            """
+            if method_name not in class_obj.__dict__:
+                return False
+            method = getattr(class_obj, method_name)
+            if not callable(method):
+                return False
+            return True
+
+        has_rotate_api_key = _has_real_implementation(plugin_class, 
+                                                     'rotate_api_key')
+        has_change_password = _has_real_implementation(plugin_class, 
+                                                      'change_password')
+        
+        if has_rotate_api_key:
+            operation_type = "api_key"
+        elif has_change_password:
+            operation_type = "password"
+        else:
+            error_msg = ("Plugin must implement either 'rotate_api_key()' or "
+                        "'change_password()' method")
+            raise Exception(error_msg)
         try:
             fields = []
             for field in user_record.dict.get("custom", []):
@@ -235,29 +340,51 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                     )
                 )
 
-            if old_password is None:
-                old_password = user_record.get_standard_field_value("password", single=True),
-            if no_old_password is True:
-                old_password = None
+            # Handle different operation types with different field requirements
+            if operation_type == "password":
+                # For password rotation: fetch standard fields (login, password)
+                if old_password is None:
+                    old_password = user_record.get_standard_field_value(
+                        "password", single=True)
+                if no_old_password is True:
+                    old_password = None
 
-            user = SaasUser(
-                username=Secret(user_record.get_standard_field_value("login", single=True)),
-                new_password=Secret(new_password) if new_password is not None else None,
-                prior_password=Secret(old_password),
-                fields=fields
-            )
+                user = SaasUser(
+                    username=Secret(user_record.get_standard_field_value("login", 
+                                                               single=True)),
+                    new_password=(Secret(new_password) if new_password is not None 
+                          else None),
+                    prior_password=(Secret(old_password) if old_password is not None 
+                           else None),
+                    fields=fields
+                )
+            else:
+                # For API key rotation: only use custom fields, 
+                # no standard fields
+                user = SaasUser(
+                    username=Secret(None),
+                    new_password=Secret(None),
+                    prior_password=Secret(None),
+                    fields=fields
+                )
         except Exception as err:
-            raise Exception(f"Cannot get value from PAM USer record: {err}")
+            raise Exception(f"Cannot get value from PAM User record: {err}")
 
-        module = load_module_from_path("test_plugin", file)
-        plugin = getattr(module, "SaasPlugin")(
+        plugin = plugin_class(
             user=user,
             config_record=config_record,
             provider_config=provider_config,
             force_fail=fail
         )
+        
         try:
-            plugin.change_password()
+            # Execute the appropriate operation based on detected functionality
+            if operation_type == "api_key":
+                Log.debug("Plugin supports rotate_api_key functionality")
+                plugin.rotate_api_key()
+            elif operation_type == "password":
+                Log.debug("Plugin supports change_password functionality")
+                plugin.change_password()
 
             if plugin.force_fail is True:
                 raise Exception("FORCE FAIL FLAG SET")
@@ -268,7 +395,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                 fields = []
                 for item in plugin.return_fields:
                     value = Secret.get_value(item.value) or ""
-                    Log.debug(f"setting the return custom field '{item.label}' to value '{value}'")
+                    Log.debug(f"setting the return custom field '{item.label}'")
                     fields.append({
                         "type": item.type,
                         "label": item.label,
@@ -279,23 +406,47 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                     user_record.dict["custom"] = []
 
                 for field in fields:
-                    found_field = next((x for x in user_record.dict["custom"] if x.get("label") == field.get("label")),
-                                       None)
+                    found_field = next(
+                        (x for x in user_record.dict["custom"] 
+                         if x.get("label") == field.get("label")),
+                        None
+                    )
                     if found_field is not None:
-                        Log.debug(f"found existing '{field['label']}' custom field in user record, "
-                                  "updating type and value")
+                        Log.debug(
+                            f"found existing '{field['label']}' custom field "
+                            f"in user record, updating type and value"
+                        )
                         found_field["value"] = field["value"]
                         found_field["type"] = field["type"]
                     else:
-                        Log.debug(f"custom field '{field['label']}' does not exist in user record, adding custom field")
+                        Log.debug(
+                            f"custom field '{field['label']}' does not exist "
+                            f"in user record, adding custom field"
+                        )
                         user_record.dict["custom"].append(field)
 
             Log.debug("updating the user record.")
-            user_record.set_standard_field_value("password", new_password)
+            
+            # Handle different types of operations
+            if operation_type == "password":
+                user_record.set_standard_field_value("password", new_password)
+            elif operation_type == "api_key":
+                # For API key rotation, use set_custom_field_values 
+                # for any additional fields
+                has_set_custom_fields = (
+                    hasattr(plugin, 'set_custom_field_values') and 
+                    callable(getattr(plugin, 'set_custom_field_values'))
+                )
+                if has_set_custom_fields:
+                    Log.debug("Setting custom field values for API key rotation")
+                    plugin.set_custom_field_values(user_record)
+        
             getattr(user_record, "_update")()
             sm.save(user_record)
 
-            print(f"{Fore.GREEN}Rotation was successful{Style.RESET_ALL}")
+            success_msg = (f"{Fore.GREEN} {operation_type.upper()} Rotation "
+                          f"was successful{Style.RESET_ALL}")
+            print(success_msg)
 
         except Exception as err:
             Log.traceback(err)
@@ -303,14 +454,50 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
 
             if plugin.can_rollback is True:
                 try:
-                    plugin.rollback_password()
-                    print(f"{Fore.YELLOW}Rotation failed, Rollback was successful{Style.RESET_ALL}")
-                except Exception as err:
-                    Log.traceback(err)
-                    print(f"{Fore.RED}Rotation and rollback were NOT successful{Style.RESET_ALL}")
+                    # Check which rollback method to use based on operation type
+                    has_rollback_api_key = (
+                        operation_type == "api_key" and 
+                        hasattr(plugin, 'rollback_api_key') and 
+                        callable(getattr(plugin, 'rollback_api_key'))
+                    )
+                    has_rollback_password = (
+                        operation_type == "password" and 
+                        hasattr(plugin, 'rollback_password') and 
+                        callable(getattr(plugin, 'rollback_password'))
+                    )
+                    
+                    if has_rollback_api_key:
+                        Log.debug("Rolling back API key rotation")
+                        plugin.rollback_api_key()
+                    elif has_rollback_password:
+                        Log.debug("Rolling back password rotation")
+                        plugin.rollback_password()
+                    else:
+                        Log.debug(
+                            "No rollback method found, implementing "
+                            "rollback_password or rollback_api_key method"
+                        )
+                    
+                    rollback_success_msg = (
+                        f"{Fore.YELLOW}Rotation failed, Rollback was "
+                        f"successful{Style.RESET_ALL}"
+                    )
+                    print(rollback_success_msg)
+                except Exception as rollback_err:
+                    Log.traceback(rollback_err)
+                    rollback_fail_msg = (
+                        f"{Fore.RED}Rotation and rollback were NOT "
+                        f"successful{Style.RESET_ALL}"
+                    )
+                    print(rollback_fail_msg)
             else:
-                Log.info("the plugin cannot rollback/revert the password")
-                print(f"{Fore.RED}Rotation was NOT successful{Style.RESET_ALL}")
+                operation_name = ("API key" if operation_type == "api_key" 
+                                else "password")
+                Log.info(f"the plugin cannot rollback/revert the {operation_name}")
+                rotation_fail_msg = (
+                    f"{Fore.RED}Rotation was NOT successful{Style.RESET_ALL}"
+                )
+                print(rotation_fail_msg)
 
     except Exception as err:
 
@@ -321,14 +508,21 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
         trc = 'Traceback (most recent call last):\n'
         msg = trc + ''.join(traceback.format_list(stack))
         if exc is not None:
-            msg += '  ' + traceback.format_exc().lstrip(trc)
+            formatted_exc = traceback.format_exc()
+            if formatted_exc.startswith(trc):
+                formatted_exc = formatted_exc[len(trc):]
+            msg += '  ' + formatted_exc
         print(msg)
         print(f"{Fore.RED}TEST ENV ERROR: {err}{Style.RESET_ALL}")
 
 
 @click.group()
 def cli():
-    pass
+    """Keeper PAM SaaS Plugin Development CLI.
+    
+    This CLI provides commands for testing and configuring SaaS plugins
+    for Keeper PAM rotation functionality.
+    """
 
 
 cli.add_command(config_command)
@@ -336,6 +530,7 @@ cli.add_command(run_command)
 
 
 def main():
+    """Main entry point for the CLI application."""
     cli()
 
 
