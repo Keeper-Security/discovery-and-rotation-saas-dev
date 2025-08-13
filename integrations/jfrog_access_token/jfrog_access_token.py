@@ -168,7 +168,7 @@ class SaasPlugin(SaasPluginBase):
         if self._temp_cert_file and os.path.exists(self._temp_cert_file):
             try:
                 os.unlink(self._temp_cert_file)
-                Log.debug(f"Cleaned up temporary certificate file")
+                Log.debug("Cleaned up temporary certificate file")
             except OSError as e:
                 Log.warning(f"Failed to clean up temporary certificate file: {e}")
             finally:
@@ -255,7 +255,7 @@ class SaasPlugin(SaasPluginBase):
         )
 
     @property
-    def get_description(self) -> Optional[str]:
+    def get_token_description(self) -> Optional[str]:
         for field in self.user.fields:
             if field.label == "token_description":
                 value = field.values[0] if field.values else None
@@ -295,7 +295,6 @@ class SaasPlugin(SaasPluginBase):
                 raise SaasException(f"Invalid subject format in token: {sub}")
                 
         except Exception as e:
-            Log.error(f"Failed to extract username from token: {e}")
             raise SaasException(f"Cannot extract username from access token: {e}") from e
 
     @property
@@ -393,15 +392,14 @@ class SaasPlugin(SaasPluginBase):
 
     def _verify_token_works(self, token: str) -> bool:
         try:
-            test_session = requests.Session()
-            test_session.verify = self.session.verify
-            test_session.timeout = API_TIMEOUT
-            test_session.headers.update({
-                'Authorization': f'Bearer {token}',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+            with requests.Session() as test_session:
+                test_session.verify = self.session.verify
+                test_session.headers.update({
+                    'Authorization': f'Bearer {token}',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
             })
-            
+                
             url = urljoin(self.jfrog_url + "/", HEALTH_ENDPOINT)
             response = test_session.get(url)
             
@@ -411,15 +409,18 @@ class SaasPlugin(SaasPluginBase):
             else:
                 Log.error(f"New token verification failed: {response.status_code}")
                 return False
-                
-        except Exception as e:
+        
+        except requests.exceptions.RequestException as e:
             Log.error(f"Token verification failed: {e}")
-            return False
+            raise SaasException(f"Token verification failed: {e}") from e
+        except Exception as e:
+            Log.error(f"Unexpected error during token verification: {e}")
+            raise SaasException(f"Unexpected error during token verification: {e}") from e
 
     def _create_access_token(self) -> Dict[str, Any]:
         payload = {
             "username": self.username,
-            "description": self.get_description,
+            "description": self.get_token_description,
             "scope": self.token_scope,
             "expires_in": EXPIRES_IN
         }

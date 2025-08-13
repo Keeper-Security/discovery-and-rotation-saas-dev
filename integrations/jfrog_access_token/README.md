@@ -13,7 +13,7 @@ JFrog's access tokens provide a secure alternative to username/password authenti
 The platform includes Artifactory, Xray, Distribution, Pipelines, and other tools for comprehensive DevOps operations.
 
 ## Pre-requisites
-In order to use the post-rotation script, you will need the following prerequisites:
+In order to use this post-rotation script, ensure the following prerequisites::
 
 **1. Requests Library:** Ensure that the requests library is installed in your Python environment. This library is necessary for making HTTP API requests to JFrog platform.
 
@@ -92,14 +92,14 @@ Store the configuration values in a Keeper Security record of type `Login` named
 - Add the following custom fields:
     - **access_token**: The current JFrog access token to be rotated
     - **token_description**: Description for the new token (e.g., "Production API Access")
-    - **jfrog_token_scope**: (Optional) Token scope. If not provided, extracted from current token
+    - **jfrog_token_scope**: (Optional) Token scope. If not provided, it will be extracted from the current token.
 - This will create a record of type **PAM User**. 
 
     <img src="images/pam_user.png" width="350" alt="pam_user">
 
 
 ## Executing the Script for Rotating Access Token
-Once you have your pre-requisites ready, make sure you cover the following:
+Once prerequisites are ready, complete the following:
 
 - Execute the following command in your activated virtual environment:
 

@@ -478,17 +478,18 @@ class JFrogAccessTokenPluginTest(JFrogAccessTokenTestBase):
     @patch('jfrog_access_token.requests.Session')
     def test_verify_token_works_success(self, mock_session_class):
         """Test successful token verification."""
-        mock_session = MagicMock()
-        mock_session_class.return_value = mock_session
-
-        # Mock the test session for token verification
+        # Mock the session that's created in the context manager
         mock_test_session = MagicMock()
         mock_test_session.get.return_value = self.create_mock_response(200)
+        mock_test_session.verify = False  # Set verify attribute
         
-        with patch('jfrog_access_token.requests.Session', return_value=mock_test_session):
-            plugin = self.plugin()
-            result = plugin._verify_token_works("test_token")
-            self.assertTrue(result)
+        # Mock the context manager behavior
+        mock_session_class.return_value.__enter__.return_value = mock_test_session
+        mock_session_class.return_value.__exit__.return_value = None
+        
+        plugin = self.plugin()
+        result = plugin._verify_token_works("test_token")
+        self.assertTrue(result)
 
     @patch('jfrog_access_token.requests.Session')
     def test_verify_token_works_failure(self, mock_session_class):
@@ -611,9 +612,9 @@ class JFrogAccessTokenPluginTest(JFrogAccessTokenTestBase):
     @patch('jfrog_access_token.requests.Session')
     def test_rotate_api_key_success(self, mock_session_class):
         """Test successful complete token rotation."""
+        # Mock the main session for API calls
         mock_session = MagicMock()
-        mock_session_class.return_value = mock_session
-
+        
         # Mock responses for health check, token creation, and revocation
         health_response = self.create_mock_response(200)
         token_data = {
@@ -626,28 +627,46 @@ class JFrogAccessTokenPluginTest(JFrogAccessTokenTestBase):
 
         mock_session.request.side_effect = [health_response, create_response, revoke_response]
 
-        # Mock token verification
+        # Mock token verification session (used in context manager)
         mock_test_session = MagicMock()
         mock_test_session.get.return_value = self.create_mock_response(200)
+        mock_test_session.verify = False  # Set verify attribute
         
-        with patch('jfrog_access_token.requests.Session', side_effect=[mock_session, mock_test_session]):
-            plugin = self.plugin()
-            plugin.change_password()
+        # Set up the Session class to return different instances
+        def session_side_effect():
+            if not hasattr(session_side_effect, 'call_count'):
+                session_side_effect.call_count = 0
+            session_side_effect.call_count += 1
+            
+            if session_side_effect.call_count == 1:
+                # First call is for the main plugin session
+                return mock_session
+            else:
+                # Second call is for token verification (context manager)
+                mock_ctx = MagicMock()
+                mock_ctx.__enter__.return_value = mock_test_session
+                mock_ctx.__exit__.return_value = None
+                return mock_ctx
+        
+        mock_session_class.side_effect = session_side_effect
+        
+        plugin = self.plugin()
+        plugin.change_password()
 
-            # Verify return fields were added
-            self.assertEqual(len(plugin.return_fields), 3)
-            
-            # Check access_token field
-            access_token_field = next(f for f in plugin.return_fields if f.label == "access_token")
-            self.assertEqual(access_token_field.value.value, "new_token_12345")
-            
-            # Check token_id field
-            token_id_field = next(f for f in plugin.return_fields if f.label == "jfrog_token_id")
-            self.assertEqual(token_id_field.value.value, "token_id_67890")
-            
-            # Check scope field
-            scope_field = next(f for f in plugin.return_fields if f.label == "jfrog_token_scope")
-            self.assertEqual(scope_field.value.value, "applied-permissions/user")
+        # Verify return fields were added
+        self.assertEqual(len(plugin.return_fields), 3)
+        
+        # Check access_token field
+        access_token_field = next(f for f in plugin.return_fields if f.label == "access_token")
+        self.assertEqual(access_token_field.value.value, "new_token_12345")
+        
+        # Check token_id field
+        token_id_field = next(f for f in plugin.return_fields if f.label == "jfrog_token_id")
+        self.assertEqual(token_id_field.value.value, "token_id_67890")
+        
+        # Check scope field
+        scope_field = next(f for f in plugin.return_fields if f.label == "jfrog_token_scope")
+        self.assertEqual(scope_field.value.value, "applied-permissions/user")
 
     @patch('jfrog_access_token.requests.Session')
     def test_rotate_api_key_token_verification_fails(self, mock_session_class):
@@ -697,8 +716,8 @@ class JFrogAccessTokenPluginTest(JFrogAccessTokenTestBase):
     @patch('jfrog_access_token.requests.Session')
     def test_rotate_api_key_revocation_fails_gracefully(self, mock_session_class):
         """Test that token rotation continues even if revocation fails."""
+        # Mock the main session for API calls
         mock_session = MagicMock()
-        mock_session_class.return_value = mock_session
 
         # Mock responses for health check, token creation, and failed revocation
         health_response = self.create_mock_response(200)
@@ -708,19 +727,37 @@ class JFrogAccessTokenPluginTest(JFrogAccessTokenTestBase):
 
         mock_session.request.side_effect = [health_response, create_response, revoke_response]
 
-        # Mock token verification
+        # Mock token verification session (used in context manager)
         mock_test_session = MagicMock()
         mock_test_session.get.return_value = self.create_mock_response(200)
+        mock_test_session.verify = False  # Set verify attribute
         
-        with patch('jfrog_access_token.requests.Session', side_effect=[mock_session, mock_test_session]):
-            plugin = self.plugin()
-            plugin.change_password()  # Should complete successfully despite revocation failure
+        # Set up the Session class to return different instances
+        def session_side_effect():
+            if not hasattr(session_side_effect, 'call_count'):
+                session_side_effect.call_count = 0
+            session_side_effect.call_count += 1
+            
+            if session_side_effect.call_count == 1:
+                # First call is for the main plugin session
+                return mock_session
+            else:
+                # Second call is for token verification (context manager)
+                mock_ctx = MagicMock()
+                mock_ctx.__enter__.return_value = mock_test_session
+                mock_ctx.__exit__.return_value = None
+                return mock_ctx
+        
+        mock_session_class.side_effect = session_side_effect
+        
+        plugin = self.plugin()
+        plugin.change_password()  # Should complete successfully despite revocation failure
 
-            # Verify return fields were still added
-            self.assertEqual(len(plugin.return_fields), 1)
-            access_token_field = plugin.return_fields[0]
-            self.assertEqual(access_token_field.label, "access_token")
-            self.assertEqual(access_token_field.value.value, "new_token_12345")
+        # Verify return fields were still added
+        self.assertEqual(len(plugin.return_fields), 1)
+        access_token_field = plugin.return_fields[0]
+        self.assertEqual(access_token_field.label, "access_token")
+        self.assertEqual(access_token_field.value.value, "new_token_12345")
 
     # ==================== Rollback Tests ====================
 
@@ -782,8 +819,8 @@ class JFrogAccessTokenPluginTest(JFrogAccessTokenTestBase):
         
         self.assertEqual("access_token", context.exception.codes[0]["code"])
 
-    def test_get_description_missing(self):
-        """Test get_description property when description is missing."""
+    def test_get_token_description_missing(self):
+        """Test get_token_description property when description is missing."""
         user = SaasUser(
             username=Secret("testuser"),
             new_password=None,
@@ -799,7 +836,7 @@ class JFrogAccessTokenPluginTest(JFrogAccessTokenTestBase):
         plugin = SaasPlugin(user=user, config_record=config_record)
 
         with self.assertRaises(SaasException) as context:
-            _ = plugin.get_description
+            _ = plugin.get_token_description
         
         self.assertEqual("token_description", context.exception.codes[0]["code"])
 
