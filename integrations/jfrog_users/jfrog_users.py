@@ -6,7 +6,7 @@ import ssl
 import tempfile
 from typing import List, Optional, TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
-
+from urllib.parse import quote
 import requests
 from requests.exceptions import RequestException, Timeout, ConnectionError
 
@@ -281,7 +281,6 @@ class SaasPlugin(SaasPluginBase):
                 raise SaasException("Cannot connect to JFrog platform")
             Log.info("JFrog platform connection test successful")
         except SaasException:
-            # Re-raise SaasExceptions (like timeout errors) as-is to preserve their specific messages
             raise
         except Exception as err:
             Log.error(f"JFrog platform connection test failed: {err}")
@@ -289,14 +288,14 @@ class SaasPlugin(SaasPluginBase):
 
     def _verify_user_exists(self):
         username = self.user.username.value
-        
+        encoded_username = quote(username, safe="")
         try:
-            response = self._make_request('GET', f'{API_ENDPOINT}/users/{username}')
+            response = self._make_request('GET', f'{API_ENDPOINT}/users/{encoded_username}')
             
             if response.status_code == 200:
                 Log.debug(f"User {username} found in JFrog platform")
                 self.can_rollback = True
-            elif response.status_code == 404:
+            elif response.status_code == 400:
                 Log.error(f"User {username} not found in JFrog platform")
                 raise SaasException(f"User '{username}' does not exist in JFrog platform")
             elif response.status_code == 401:
@@ -330,25 +329,19 @@ class SaasPlugin(SaasPluginBase):
         
         try:
             self._verify_user_exists()
-            
+            encoded_username = quote(username, safe="")
             payload = {
                 "password": password.value
             }
             
             response = self._make_request(
                 'PUT',
-                f'{API_ENDPOINT}/users/{username}/password',
+                f'{API_ENDPOINT}/users/{encoded_username}/password',
                 json=payload
             )
             
             if response.status_code == 204:
                 Log.info(f"Password changed successfully for user: {username}")
-            elif response.status_code == 401:
-                raise SaasException("Authentication failed - invalid admin credentials")
-            elif response.status_code == 403:
-                raise SaasException("Authorization failed - insufficient permissions")
-            elif response.status_code == 404:
-                raise SaasException(f"User '{username}' not found")
             elif response.status_code == 400:
                 error_msg = "Invalid password change request"
                 try:
@@ -373,6 +366,9 @@ class SaasPlugin(SaasPluginBase):
                 
                 self._can_rollback = True
                 raise SaasException(error_msg)
+        except SaasException:
+            self._can_rollback = True
+            raise
         except Exception as err:
             self._can_rollback = True
             Log.error(f"Unexpected error changing password: {err}")

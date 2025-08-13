@@ -17,7 +17,7 @@ role-based access control (RBAC), and comprehensive audit trails to protect your
 Reference for [Jfrog Rest API's](https://jfrog-external.fluidtopics.net/r/jfrog-rest-apis/jfrog-platform-rest-apis) 
 
 ## Pre-requisites
-In order to use the post-rotation script, you will need the following prerequisites:
+In order to use this post-rotation script, ensure the following prerequisites:
 
 **1. Requests Library:** Ensure that the requests library is installed in your Python environment. This library is necessary for making HTTP API requests to JFrog platforms.
 
@@ -50,7 +50,7 @@ In order to use the post-rotation script, you will need the following prerequisi
     <img src="images/add_users_2.png" width="350" alt="add_users_2">
 
 #### Creating an Admin Access Token
-To perform user management operations such as password rotation, you need an admin access token with appropriate permissions.
+To perform user management operations such as password rotation, user need an admin access token with appropriate permissions.
 
 - Navigate to **Administration** → **User Management** → **Access Tokens**.
 - Click on **Generate Token**
@@ -118,7 +118,7 @@ Sets the configuration values in a Keeper Security record of type `Login` named 
 
     <img src="images/plugin_test_config.png" width="350" alt="plugin_test_config">
 
-- The above command will give you the admin config record in Keeper Vault.
+- The above command will generate the admin config record in Keeper Vault.
 
     <img src="images/keeper_vault_admin_record.png" width="350" alt="keeper_vault_admin_record">
 
@@ -130,7 +130,7 @@ Sets the configuration values in a Keeper Security record of type `Login` named 
     <img src="images/pam_user.png" width="350" alt="pam_user">
 
 ## Executing the Script for Rotating Password
-Once you have your pre-requisites ready, make sure you cover the following:
+Once your pre-requisites ready, make sure cover the following:
 
 - Execute the following command in your activated virtual environment:
 
