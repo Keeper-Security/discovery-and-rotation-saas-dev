@@ -186,13 +186,6 @@ The admin user requires the following permissions:
 - `restapi:admin/internalusers`
 - Access to the Security API endpoints
 
-### Best Practices
-- Use HTTPS connections in production environments
-- Implement proper SSL certificate validation
-- Use strong admin passwords
-- Regularly rotate admin credentials
-- Monitor access logs for security events
-
 ## API Endpoints Used
 
 The plugin utilizes the following OpenSearch Security API endpoints:
