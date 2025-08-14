@@ -4,7 +4,6 @@ import atexit
 import base64
 import json
 import os
-import re
 import ssl
 import tempfile
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
@@ -141,10 +140,6 @@ class SaasPlugin(SaasPluginBase):
     @staticmethod
     def _decode_jwt_payload(token: str) -> Dict[str, Any]:
         try:
-            # Handle test tokens with prefix (for testing only)
-            if token.startswith("fake_test_token_"):
-                token = token[16:]  # Remove "fake_test_token_" prefix
-            
             parts = token.split('.')
             if len(parts) != 3:
                 raise ValueError("Invalid JWT format")
