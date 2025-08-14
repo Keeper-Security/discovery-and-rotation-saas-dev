@@ -43,20 +43,8 @@ In order to use the post-rotation script, you will need the following prerequisi
     - **Password**
 
 
-- (Optional) Assign one or more roles to the user if needed.
+- (Optional) Assign one or more backend roles to the user if needed.
 - Click **Create** to finalize the user creation.
-
-#### Role:
-
-To perform user management operations such as password rotation using admin credentials, the associated user or role must have appropriate permissions.
-- Under the **Security** section, click on **Roles**.
-
-    <img src="images/create_role.png" width="350" alt="create_role">
-
-- Click on **Create Role**.
-- Add the details of role like name and required permissions:
-- `restapi:admin/internalusers`
-- Click **Create role**
 
 #### Creating an Admin User
 
@@ -70,11 +58,23 @@ To perform user management operations such as password rotation using admin cred
     - **Username**: admin (or your preferred admin username)
     - **Password**: Strong admin password
     - **Backend roles**: admin
-    - **Roles**: all_access or custom role with security management permissions
 
 
 - Click **Create User**.
 - This admin user will be used for authentication in the plugin configuration.
+
+#### Role:
+
+To perform user management operations such as password rotation using admin credentials, the associated user or role must have appropriate permissions.
+- Under the **Security** section, click on **Roles**.
+
+    <img src="images/create_role.png" width="350" alt="create_role">
+
+- Click on **Create Role**.
+- Add the details of role like name and required permissions:
+- `restapi:admin/internalusers`
+- Click **Create role**
+- Assign the role to the user who will use for rotating the password (e.g `Admin User`).
 
 ## Steps to Create Keeper Security Records and OpenSearch Integration
 

@@ -14,7 +14,7 @@ from opensearchpy.exceptions import (
 from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
 from kdnrm.saas_plugins import SaasPluginBase
-from kdnrm.saas_type import ReturnCustomField, SaasConfigItem, SaasConfigEnum, Secret
+from kdnrm.saas_type import  SaasConfigItem, SaasConfigEnum
 
 if TYPE_CHECKING:  # pragma: no cover
     from keeper_secrets_manager_core.dto.dtos import Record
@@ -151,7 +151,7 @@ class SaasPlugin(SaasPluginBase):
 
     @property
     def verify_ssl(self) -> bool:
-        """Verify SSL for the Elasticsearch client."""
+        """Verify SSL for the OpenSearch client."""
         verify_ssl_value = self.get_config("verify_ssl")
         return self.should_verify_ssl(verify_ssl_value)
 
@@ -166,7 +166,7 @@ class SaasPlugin(SaasPluginBase):
             Properly formatted certificate content
         """
         # Remove all whitespace and normalize
-        cleaned = cert_content.replace('\n', '').replace('\r', '').replace(' ', '')
+        cleaned = cert_content.replace('\n', '').replace('\r', '').replace(' ', '').replace('\t', '')
         
         # Find certificate boundaries
         begin_marker = "-----BEGINCERTIFICATE-----"
@@ -220,15 +220,16 @@ class SaasPlugin(SaasPluginBase):
         # Fix certificate format if needed
         stripped_content = cert_content.strip()
         
-        # Check if certificate has line break issues
-        if ("-----BEGIN CERTIFICATE-----" in stripped_content and 
-            not stripped_content.startswith("-----BEGIN CERTIFICATE-----\n")):
-            Log.debug("Certificate format needs fixing - applying line breaks")
+        # Check if certificate contains valid headers and footers
+        has_begin_marker = "-----BEGIN CERTIFICATE-----" in stripped_content
+        has_end_marker = "-----END CERTIFICATE-----" in stripped_content
+        
+        if has_begin_marker and has_end_marker:
+            Log.debug("Certificate has valid markers - normalizing format")
             stripped_content = SaasPlugin.fix_certificate_format(stripped_content)
-            Log.debug("Certificate format fixed")
+            Log.debug("Certificate format normalized")
         
-        
-        # Check if certificate has proper format
+        # Check if certificate has proper format after normalization
         if not stripped_content.startswith("-----BEGIN CERTIFICATE-----"):
             Log.error("SSL certificate content does not start with '-----BEGIN CERTIFICATE-----'")
             raise SaasException(
@@ -259,21 +260,49 @@ class SaasPlugin(SaasPluginBase):
         """Validate OpenSearch URL format.
         
         Args:
-            url: The Elasticsearch URL to validate
+            url: The OpenSearch URL to validate
+            
+        Returns:
+            ParseResult: Parsed URL components
             
         Raises:
             SaasException: If the URL format is invalid
         """
+        if not url or not url.strip():
+            raise SaasException(
+                "OpenSearch URL cannot be empty",
+                code="invalid_url"
+            )
+            
         try:
-            parsed = urlparse(url)
-            if not parsed.scheme or not parsed.netloc:
-                raise ValueError("Invalid URL structure")
+            parsed = urlparse(url.strip())
+            
+            if not parsed.scheme:
+                raise SaasException(
+                    "Invalid OpenSearch URL: scheme is required (http or https)",
+                    code="invalid_url"
+                )
+                
             if parsed.scheme not in ("http", "https"):
-                raise ValueError("URL must use http or https")
+                raise SaasException(
+                    "Invalid OpenSearch URL: scheme must be http or https",
+                    code="invalid_url"
+                )
+                
+            if not parsed.hostname:
+                raise SaasException(
+                    "Invalid OpenSearch URL: hostname is required",
+                    code="invalid_url"
+                )
+                
             return parsed
+            
+        except SaasException:
+            # Re-raise SaasExceptions as-is
+            raise
         except Exception as e:
             raise SaasException(
-                "Invalid Elasticsearch URL. Must be a valid http/https URL.",
+                f"Invalid OpenSearch URL format: {str(e)}",
                 code="invalid_url"
             ) from e
 
@@ -336,17 +365,9 @@ class SaasPlugin(SaasPluginBase):
         Log.debug("Validating OpenSearch configuration parameters")
         
         try:
-            # Validate URL format
+            # Validate URL format using centralized validation
             url = self.get_config("opensearch_url")
-            parsed_url = urlparse(url)
-            
-            if not parsed_url.hostname:
-                raise SaasException("Invalid OpenSearch URL: hostname is required")
-            
-            if parsed_url.scheme not in ["http", "https"]:
-                raise SaasException(
-                    "Invalid OpenSearch URL: scheme must be http or https"
-                )
+            self.validate_opensearch_url(url)
             
             # Validate required fields
             admin_username = self.get_config("admin_username")
@@ -359,31 +380,15 @@ class SaasPlugin(SaasPluginBase):
             
             Log.debug("All OpenSearch configuration parameters are valid")
             
+        except SaasException:
+            # Re-raise SaasExceptions as-is (including URL validation errors)
+            raise
         except Exception as e:
             Log.error(f"Configuration validation failed: {e}")
             raise SaasException(f"Configuration validation failed: {str(e)}") from e
 
-    def _get_user_field(self, field_label: str) -> str:
-        """Get value from user fields by label.
-        
-        Args:
-            field_label: The label of the field to retrieve
-            
-        Returns:
-            The field value
-            
-        Raises:
-            SaasException: If the field is not found
-        """
-        for field in self.user.fields:
-            if field.label == field_label:
-                if field.values and len(field.values) > 0:
-                    return field.values[0]
-        raise SaasException(
-            f"Required field '{field_label}' not found in user fields"
-        )
 
-    def _get_user_details(self, username: str) -> bool :
+    def _is_user_present(self, username: str) -> bool :
         """Get user details from OpenSearch.
         
         Args:
@@ -429,7 +434,7 @@ class SaasPlugin(SaasPluginBase):
         try:
             Log.debug(f"Updating password for user: {username}")
 
-            if not self._get_user_details(username):
+            if not self._is_user_present(username):
                 raise SaasException(f"User '{username}' not found")
 
             update_payload = {
@@ -476,12 +481,11 @@ class SaasPlugin(SaasPluginBase):
         """
         Log.info("Starting OpenSearch user password rotation")
 
+        self._validate_configuration()
         if self.client is None:
             raise SaasException("Failed to create OpenSearch client")
 
         try:
-            self._validate_configuration()
-            
             username = self.user.username
             if not username or not username.value.strip():
                 raise SaasException("Username field is required but not found")
@@ -502,19 +506,14 @@ class SaasPlugin(SaasPluginBase):
             raise SaasException(f"Password rotation failed: {str(e)}") from e
 
     def rollback_password(self) -> None:
-        """Rollback the password change for the OpenSearch user.
-        
-        Note: OpenSearch doesn't support true password rollback as the old
-        password hash cannot be restored once changed.
-        
-        Raises:
-            SaasException: Always raised as rollback is not supported
+        """
+        Rollback the password change for the OpenSearch user.
         """
         Log.info("Rollback requested for OpenSearch user password")
         try:
             if self.user.prior_password is None:
                 raise SaasException("Prior password is required for rollback")
-                
+
             username = self.user.username.value
             self._update_user_password(username, self.user.prior_password.value)
         except Exception as e:

@@ -1,14 +1,7 @@
 # Test requirements for OpenSearch User Password Rotation Plugin
 
 # Main dependency
-opensearch-py>=2.0.0
+opensearch-py>=3.0.0
 
 # Testing dependencies
-pytest>=7.0.0
-pytest-cov>=4.0.0
-unittest-xml-reporting>=3.2.0
-
-# Development dependencies
-flake8>=5.0.0
-black>=22.0.0
-mypy>=1.0.0
+pytest>=8.4.1

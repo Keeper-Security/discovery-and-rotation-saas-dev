@@ -247,26 +247,99 @@ qw+ELO8VJH+jQ+YHCP+e1k+4bC6vG0a8dH1cMzV4D5vGJoQ4A3hQrLZzlJ+W5+F3
         
         self.assertIn("Admin Password is required", str(context.exception))
 
-    def test_get_user_field_success(self) -> None:
-        """Test successful user field retrieval."""
-        plugin = self.plugin()
-        username = plugin._get_user_field("username")
-        self.assertEqual("test-user", username)
 
-    def test_get_user_field_not_found(self) -> None:
-        """Test user field retrieval for non-existent field."""
-        plugin = self.plugin()
+
+    def test_validate_opensearch_url_valid_https(self) -> None:
+        """Test URL validation with valid HTTPS URL."""
+        valid_url = "https://opensearch.example.com:9200"
+        parsed = SaasPlugin.validate_opensearch_url(valid_url)
         
+        self.assertEqual(parsed.scheme, "https")
+        self.assertEqual(parsed.hostname, "opensearch.example.com")
+        self.assertEqual(parsed.port, 9200)
+
+    def test_validate_opensearch_url_valid_http(self) -> None:
+        """Test URL validation with valid HTTP URL."""
+        valid_url = "http://localhost:9200"
+        parsed = SaasPlugin.validate_opensearch_url(valid_url)
+        
+        self.assertEqual(parsed.scheme, "http")
+        self.assertEqual(parsed.hostname, "localhost")
+        self.assertEqual(parsed.port, 9200)
+
+    def test_validate_opensearch_url_no_port(self) -> None:
+        """Test URL validation with URL without explicit port."""
+        valid_url = "https://opensearch.example.com"
+        parsed = SaasPlugin.validate_opensearch_url(valid_url)
+        
+        self.assertEqual(parsed.scheme, "https")
+        self.assertEqual(parsed.hostname, "opensearch.example.com")
+        self.assertIsNone(parsed.port)
+
+    def test_validate_opensearch_url_empty(self) -> None:
+        """Test URL validation with empty URL."""
         with self.assertRaises(SaasException) as context:
-            plugin._get_user_field("non_existent_field")
+            SaasPlugin.validate_opensearch_url("")
         
-        self.assertIn(
-            "Required field 'non_existent_field' not found",
-            str(context.exception)
-        )
+        self.assertIn("OpenSearch URL cannot be empty", str(context.exception))
+
+    def test_validate_opensearch_url_whitespace_only(self) -> None:
+        """Test URL validation with whitespace-only URL."""
+        with self.assertRaises(SaasException) as context:
+            SaasPlugin.validate_opensearch_url("   ")
+        
+        self.assertIn("OpenSearch URL cannot be empty", str(context.exception))
+
+    def test_validate_opensearch_url_no_scheme(self) -> None:
+        """Test URL validation with missing scheme."""
+        with self.assertRaises(SaasException) as context:
+            SaasPlugin.validate_opensearch_url("opensearch.example.com:9200")
+        
+        self.assertIn("scheme must be http or https", str(context.exception))
+        self.assertIn("OpenSearch", str(context.exception))
+
+    def test_validate_opensearch_url_empty_scheme(self) -> None:
+        """Test URL validation with empty scheme."""
+        with self.assertRaises(SaasException) as context:
+            SaasPlugin.validate_opensearch_url("://opensearch.example.com:9200")
+        
+        self.assertIn("scheme is required (http or https)", str(context.exception))
+        self.assertIn("OpenSearch", str(context.exception))
+
+    def test_validate_opensearch_url_invalid_scheme(self) -> None:
+        """Test URL validation with invalid scheme."""
+        with self.assertRaises(SaasException) as context:
+            SaasPlugin.validate_opensearch_url("ftp://opensearch.example.com:9200")
+        
+        self.assertIn("scheme must be http or https", str(context.exception))
+        self.assertIn("OpenSearch", str(context.exception))
+
+    def test_validate_opensearch_url_no_hostname(self) -> None:
+        """Test URL validation with missing hostname."""
+        with self.assertRaises(SaasException) as context:
+            SaasPlugin.validate_opensearch_url("https://")
+        
+        self.assertIn("hostname is required", str(context.exception))
+        self.assertIn("OpenSearch", str(context.exception))
+
+    def test_validate_opensearch_url_strips_whitespace(self) -> None:
+        """Test URL validation strips leading/trailing whitespace."""
+        url_with_whitespace = "  https://opensearch.example.com:9200  "
+        parsed = SaasPlugin.validate_opensearch_url(url_with_whitespace)
+        
+        self.assertEqual(parsed.scheme, "https")
+        self.assertEqual(parsed.hostname, "opensearch.example.com")
+        self.assertEqual(parsed.port, 9200)
+
+    def test_validate_opensearch_url_malformed(self) -> None:
+        """Test URL validation with malformed URL."""
+        with self.assertRaises(SaasException) as context:
+            SaasPlugin.validate_opensearch_url("not-a-url-at-all")
+        
+        self.assertIn("scheme is required (http or https)", str(context.exception))
 
     @patch('opensearch_users.OpenSearch')
-    def test_get_user_details_success(self, mock_opensearch) -> None:
+    def test_is_user_present_success(self, mock_opensearch) -> None:
         """Test successful user details retrieval."""
         # Setup mocks
         mock_client_instance = MagicMock()
@@ -280,13 +353,13 @@ qw+ELO8VJH+jQ+YHCP+e1k+4bC6vG0a8dH1cMzV4D5vGJoQ4A3hQrLZzlJ+W5+F3
         mock_opensearch.return_value = mock_client_instance
         
         plugin = self.plugin()
-        result = plugin._get_user_details("test-user")
+        result = plugin._is_user_present("test-user")
         
-        # _get_user_details now returns True if user exists, False otherwise
+        # _is_user_present now returns True if user exists, False otherwise
         self.assertTrue(result)
 
     @patch('opensearch_users.OpenSearch')
-    def test_get_user_details_not_found(self, mock_opensearch) -> None:
+    def test_is_user_present_not_found(self, mock_opensearch) -> None:
         """Test user details retrieval for non-existent user."""
         from opensearchpy.exceptions import NotFoundError
         
@@ -299,7 +372,7 @@ qw+ELO8VJH+jQ+YHCP+e1k+4bC6vG0a8dH1cMzV4D5vGJoQ4A3hQrLZzlJ+W5+F3
         plugin = self.plugin()
         
         with self.assertRaises(SaasException) as context:
-            plugin._get_user_details("non-existent-user")
+            plugin._is_user_present("non-existent-user")
         
         self.assertIn("User 'non-existent-user' not found", str(context.exception))
 
@@ -645,6 +718,95 @@ qw+ELO8VJH+jQ+YHCP+e1k+4bC6vG0a8dH1cMzV4D5vGJoQ4A3hQrLZzlJ+W5+F3
         
         result = SaasPlugin.create_ssl_context("   ", True)
         self.assertIsNone(result)
+
+    @patch('opensearch_users.ssl.create_default_context')
+    def test_ssl_certificate_various_malformed_formats(self, mock_ssl_context) -> None:
+        """Test that various malformed certificate formats are properly normalized."""
+        # Mock SSL context creation to return a valid context
+        mock_ssl_context_instance = MagicMock()
+        mock_ssl_context.return_value = mock_ssl_context_instance
+        
+        # Test case 1: Certificate with extra spaces around content
+        cert_with_spaces = "  -----BEGIN CERTIFICATE-----  MIIDXTCCAkWgAwIBAgIJAJC1HiIAZAiIMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRl  -----END CERTIFICATE-----  "
+        
+        result = SaasPlugin.create_ssl_context(cert_with_spaces, True)
+        self.assertIsNotNone(result)
+        
+        # Verify that ssl.create_default_context was called with normalized certificate
+        mock_ssl_context.assert_called()
+        call_args = mock_ssl_context.call_args[1]['cadata']
+        self.assertTrue(call_args.startswith("-----BEGIN CERTIFICATE-----\n"))
+        self.assertTrue(call_args.endswith("\n-----END CERTIFICATE-----"))
+        
+        # Test case 2: Certificate with mixed line endings (CR+LF)
+        mock_ssl_context.reset_mock()
+        cert_with_crlf = "-----BEGIN CERTIFICATE-----\r\nMIIDXTCCAkWgAwIBAgIJAJC1HiIAZAiIMA0GCSqGSIb3DQEBCwUAMEU\r\n-----END CERTIFICATE-----\r\n"
+        
+        result = SaasPlugin.create_ssl_context(cert_with_crlf, True)
+        self.assertIsNotNone(result)
+        mock_ssl_context.assert_called()
+        
+        # Test case 3: Certificate on single line with no line breaks
+        mock_ssl_context.reset_mock()
+        cert_single_line = "-----BEGIN CERTIFICATE-----MIIDXTCCAkWgAwIBAgIJAJC1HiIAZAiIMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRl-----END CERTIFICATE-----"
+        
+        result = SaasPlugin.create_ssl_context(cert_single_line, True)
+        self.assertIsNotNone(result)
+        
+        # Verify proper 64-character line wrapping was applied
+        call_args = mock_ssl_context.call_args[1]['cadata']
+        lines = call_args.split('\n')
+        # Check that certificate data lines (excluding headers/footers) are properly wrapped
+        for line in lines[1:-1]:  # Skip header and footer lines
+            if line.strip():  # Skip empty lines
+                self.assertLessEqual(len(line), 64, f"Line too long: {line}")
+        
+        # Test case 4: Certificate with irregular spacing in header/footer
+        mock_ssl_context.reset_mock()
+        cert_irregular_spacing = "-----BEGIN   CERTIFICATE-----\nMIIDXTCCAkWgAwIBAgIJAJC1HiIAZAiIMA0GCSqGSIb3DQEBCwUAMEU\n-----END   CERTIFICATE-----"
+        
+        # This should fail since the headers don't match exactly
+        with self.assertRaises(SaasException) as context:
+            SaasPlugin.create_ssl_context(cert_irregular_spacing, True)
+        self.assertIn("Invalid SSL certificate format", str(context.exception))
+
+    @patch('opensearch_users.ssl.create_default_context')
+    def test_ssl_certificate_normalization_edge_cases(self, mock_ssl_context) -> None:
+        """Test edge cases for certificate normalization."""
+        # Mock SSL context creation to return a valid context
+        mock_ssl_context_instance = MagicMock()
+        mock_ssl_context.return_value = mock_ssl_context_instance
+        
+        # Test case 1: Certificate with very long base64 lines (>64 chars)
+        long_line_cert = """-----BEGIN CERTIFICATE-----
+MIIDXTCCAkWgAwIBAgIJAJC1HiIAZAiIMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwHhcNMTYxMjI4MTEzNTI3WhcNMjYxMjI2MTEzNTI3WjBGMQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwbVDOd2GKq6OjbqKGNMVQ2TlAV2Fh2FpxCYkLaTdkQO6lOjFkCzfKqlXW2HQpD5jFgzd6pX4qQ7YnPxBKcJr8HNf8gPYE5vOdVcBUITdZMhS1qILRhtlSVY2qpyTx5Qz6XYwpDN5FH1vH2lH9N5FHwqC7KQEH0HrRJ5qVYGxJHUgVHqPzVnIJU5ZjKMTUJJ5YCDrQvGb4QGnN7PqjQpXgPjS6dJLhjYKGjY2U4W8d7vAG8rqhW05UQMWK1jGfJpCDQX4JQES
+-----END CERTIFICATE-----"""
+        
+        result = SaasPlugin.create_ssl_context(long_line_cert, True)
+        self.assertIsNotNone(result)
+        
+        # Verify proper line wrapping was applied
+        call_args = mock_ssl_context.call_args[1]['cadata']
+        lines = call_args.split('\n')
+        for line in lines[1:-1]:  # Skip header and footer lines
+            if line.strip():  # Skip empty lines
+                self.assertLessEqual(len(line), 64, f"Line too long after normalization: {line}")
+        
+        # Test case 2: Certificate with tabs and multiple spaces
+        mock_ssl_context.reset_mock()
+        cert_with_tabs = "-----BEGIN CERTIFICATE-----\t\nMIIDXTC\t CAkWgAwIBAgIJAJC1HiIAZAiIMA0GCSqGSIb3DQEBCwUAMEU\n  \t-----END CERTIFICATE-----"
+        
+        result = SaasPlugin.create_ssl_context(cert_with_tabs, True)
+        self.assertIsNotNone(result)
+        
+        # Verify normalization removed tabs and extra spaces
+        call_args = mock_ssl_context.call_args[1]['cadata']
+        self.assertNotIn('\t', call_args)
+        # Should not have multiple consecutive spaces in certificate data
+        cert_lines = call_args.split('\n')[1:-1]  # Skip header/footer
+        for line in cert_lines:
+            if line.strip():
+                self.assertNotIn('  ', line, f"Multiple spaces found in normalized cert line: {line}")
 
 
 if __name__ == '__main__':
