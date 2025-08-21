@@ -52,7 +52,6 @@ To perform user management operations such as password rotation, the admin user 
 - Under the table select **Capabilities**, add the below capabilities:
     - `edit_user` - Required to modify user accounts
     - `list_users` - Required to verify user existence
-    - `edit_roles` - Required to modify roles
 
     <img src="images/elevated_role.png" width="350" alt="elevated_role">
 
@@ -63,12 +62,16 @@ To perform user management operations such as password rotation, the admin user 
 
     <img src="images/pam_user.png" width="350" alt="pam_user">
 
-### 2. SSL Certificate (Optional)
-If your Splunk instance uses a custom SSL certificate or self-signed certificate:
-- Obtain the CA certificate file (.crt or .pem format)
+### 2. SSL Certificate Configuration
+**Security Note:** HTTPS is strongly recommended for production environments.
+
+If your Splunk instance uses a custom SSL certificate:
+- Obtain the CA certificate in PEM format
+- **Important:** When providing a custom certificate, SSL verification will be automatically enforced for security
 - You can either:
-  - Set "Verify SSL" to "False" to disable SSL verification.
-  - Provide the custom certificate content in the "SSL Certificate Content" field
+  - **Recommended:** Provide the custom certificate content in the "SSL Certificate Content" field
+  - **Not Recommended:** Set "Verify SSL" to "False" only for testing environments (HTTP connections will generate security warnings)
+
 
 ### 3. Plugin Configuration
 - Configure the plugin with the following required parameters:
@@ -102,7 +105,7 @@ If your Splunk instance uses a custom SSL certificate or self-signed certificate
     Enter Value  (default: True): > 
 
     Optional: SSL Certificate Content
-    CA certificate content (.crt format). Only required when 'Verify SSL' is set to 'True' and using custom certificates.
+    CA certificate content (.pem format). Only required when 'Verify SSL' is set to 'True' and using custom certificates.
     Enter path to read from local file.
     Enter Value : > 
 
@@ -111,7 +114,7 @@ If your Splunk instance uses a custom SSL certificate or self-signed certificate
     - Admin Username : Username of admin account
     - Admin Password : Password of admin account  
     - Verify SSL : Boolean value
-    - SSL Certificate Content : (.crt) file content
+    - SSL Certificate Content : (.pem) file content
     ```
 
     <img src="images/plugin_config.png" width="350" alt="plugin_config">
@@ -145,6 +148,31 @@ Once you have your pre-requisites ready, make sure you cover the following:
 
     <img src="images/success_rotated.png" width="350" alt="success_rotated">
 
+### Connection Issues
+
+#### 1. Cannot Connect to Splunk
+- **Check URL format:** Ensure the URL includes the scheme (https://) and correct port (default: 8089)
+- **Network connectivity:** Verify firewall settings allow access to the management port
+- **Service status:** Ensure Splunk services are running and accessible
+- **DNS resolution:** Verify hostname resolves correctly
+
+#### 2. SSL Certificate Problems
+- **Certificate format:** Must be in PEM format with `-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----` markers
+- **Certificate chain:** Ensure the complete certificate chain is provided
+- **Expiration:** Check certificate hasn't expired
+- **Trust store:** Verify the certificate is from a trusted CA or provide custom certificate content
+
+#### 3. Authentication/Authorization Failures
+- **Admin credentials:** Verify the admin username and password are correct
+- **User capabilities:** Admin user needs the following Splunk capabilities:
+  - `edit_user` - Required to modify user accounts
+  - `list_users` - Required to verify user existence
+- **Role assignments:** Check role assignments in Splunk Admin interface
+
+#### 4. User Management Issues
+- **Target user exists:** Verify the target user exists in Splunk before attempting password rotation
+- **User permissions:** Ensure the target user account is not locked or disabled
+- **Password policy:** New passwords must comply with Splunk's password policy
 
 For more information, refer to the [Splunk SDK for Python documentation](https://dev.splunk.com/enterprise/docs/python/sdk-python/).
 

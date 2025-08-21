@@ -1,5 +1,5 @@
 import ssl
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
 from splunklib import client
@@ -8,6 +8,12 @@ from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
 from kdnrm.saas_plugins import SaasPluginBase
 from kdnrm.saas_type import Secret, SaasConfigItem, SaasConfigEnum
+
+# Constants
+DEFAULT_SPLUNK_PORT = 8089
+CERTIFICATE_LINE_LENGTH = 64
+CERTIFICATE_BEGIN_MARKER = "-----BEGIN CERTIFICATE-----"
+CERTIFICATE_END_MARKER = "-----END CERTIFICATE-----"
 
 class SaasPlugin(SaasPluginBase):
     """Splunk User Password Rotation Plugin."""
@@ -41,7 +47,10 @@ class SaasPlugin(SaasPluginBase):
             SaasConfigItem(
                 id="splunk_host",
                 label="Splunk Host URL",
-                desc="Splunk management port URL (e.g., https://example.com:8089).",
+                desc=(
+                    "Splunk management port URL "
+                    "(e.g., https://example.com:8089)."
+                ),
                 type="url",
                 required=True,
             ),
@@ -164,107 +173,189 @@ class SaasPlugin(SaasPluginBase):
             verify_ssl: Whether SSL verification is enabled
             
         Returns:
-            Optional[ssl.SSLContext]: SSL context if custom cert provided, None otherwise
+            Optional[ssl.SSLContext]: SSL context if custom cert provided, 
+                None otherwise
             
         Raises:
-            SaasException: If the SSL certificate content is invalid
+            SaasException: If the SSL certificate content is invalid or SSL 
+                verification is disabled with custom cert
         """
-        if not verify_ssl:
-            Log.debug("SSL verification disabled, skipping SSL context creation")
-            return None
-
         if not cert_content or not cert_content.strip():
             Log.debug("No SSL certificate content provided")
             return None
 
-        # Fix certificate format if needed
-        stripped_content = cert_content.strip()
-        
-        # Check if certificate contains valid headers and footers
-        has_begin_marker = "-----BEGIN CERTIFICATE-----" in stripped_content
-        has_end_marker = "-----END CERTIFICATE-----" in stripped_content
-        
-        if has_begin_marker and has_end_marker:
-            Log.debug("Certificate has valid markers - normalizing format")
-            stripped_content = SaasPlugin.fix_certificate_format(stripped_content)
-            Log.debug("Certificate format normalized")
-        
-        # Check if certificate has proper format after normalization
-        if not stripped_content.startswith("-----BEGIN CERTIFICATE-----"):
-            Log.error("SSL certificate content does not start with "
-                     "'-----BEGIN CERTIFICATE-----'")
-            raise SaasException(
-                "Invalid SSL certificate format: "
-                "Missing '-----BEGIN CERTIFICATE-----' header",
-                code="invalid_ssl_cert_format"
+        # Security enhancement: Require SSL verification when custom 
+        # certificate is provided
+        if not verify_ssl:
+            Log.error(
+                "Custom SSL certificate provided but SSL verification is disabled"
             )
-            
-        if not stripped_content.endswith("-----END CERTIFICATE-----"):
-            Log.error("SSL certificate content does not end with "
-                     "'-----END CERTIFICATE-----'")
             raise SaasException(
-                "Invalid SSL certificate format: "
-                "Missing '-----END CERTIFICATE-----' footer",
-                code="invalid_ssl_cert_format"
+                (
+                    "Security error: Custom SSL certificate cannot be used "
+                    "with SSL verification disabled"
+                ),
+                code="ssl_verification_required"
             )
 
         try:
+            # Fix certificate format if needed
+            stripped_content = cert_content.strip()
+            
+            # Check if certificate contains valid headers and footers
+            has_begin_marker = CERTIFICATE_BEGIN_MARKER in stripped_content
+            has_end_marker = CERTIFICATE_END_MARKER in stripped_content
+            
+            if has_begin_marker and has_end_marker:
+                Log.debug("Certificate has valid markers - normalizing format")
+                stripped_content = SaasPlugin.fix_certificate_format(
+                    stripped_content
+                )
+                Log.debug("Certificate format normalized")
+            else:
+                # Try to fix format for certificates without proper markers
+                Log.debug("Attempting to fix certificate format")
+                stripped_content = SaasPlugin.fix_certificate_format(
+                    stripped_content
+                )
+            
+            # Final validation after normalization
+            if not stripped_content.startswith(CERTIFICATE_BEGIN_MARKER):
+                raise SaasException(
+                    (
+                        f"Invalid SSL certificate format: Missing "
+                        f"'{CERTIFICATE_BEGIN_MARKER}' header"
+                    ),
+                    code="invalid_ssl_cert_format"
+                )
+                
+            if not stripped_content.endswith(CERTIFICATE_END_MARKER):
+                raise SaasException(
+                    (
+                        f"Invalid SSL certificate format: Missing "
+                        f"'{CERTIFICATE_END_MARKER}' footer"
+                    ),
+                    code="invalid_ssl_cert_format"
+                )
+
             Log.debug("Creating SSL context with provided certificate")
-            return ssl.create_default_context(cadata=stripped_content)
+            ssl_context = ssl.create_default_context(cadata=stripped_content)
+            Log.info(
+                "Custom SSL certificate validated and context created successfully"
+            )
+            return ssl_context
+            
+        except SaasException:
+            # Re-raise SaasExceptions as-is (don't wrap them)
+            raise
         except ssl.SSLError as e:
             Log.error(f"Invalid SSL certificate content: {e}")
             raise SaasException(
                 f"Invalid SSL certificate: {e}",
                 code="invalid_ssl_cert"
             ) from e
+        except Exception as e:
+            Log.error(f"Unexpected error processing SSL certificate: {e}")
+            raise SaasException(
+                f"Failed to process SSL certificate: {e}",
+                code="ssl_cert_processing_error"
+            ) from e
+
 
     @staticmethod
-    def validate_splunk_url(url: str) -> None:
-        """Validate Splunk URL format.
+    def validate_splunk_url(url: str) -> Tuple[str, int]:
+        """Validate Splunk URL format and return host and port.
         
         Args:
             url: The Splunk URL to validate
             
+        Returns:
+            Tuple[str, int]: Validated hostname and port
+            
         Raises:
             SaasException: If the URL format is invalid
         """
-        if not url or not url.strip():
+        if not url or not isinstance(url, str) or not url.strip():
             raise SaasException(
-                "Splunk URL cannot be empty",
+                "Splunk URL cannot be empty and must be a string",
                 code="invalid_url"
             )
             
         try:
-            parsed = urlparse(url.strip())
+            cleaned_url = url.strip()
+            parsed = urlparse(cleaned_url)
             
+            # Validate scheme
             if not parsed.scheme:
                 raise SaasException(
                     "Invalid Splunk URL: scheme is required (http or https)",
-                    code="invalid_url"
+                    code="invalid_url_scheme"
                 )
                 
             if parsed.scheme not in ("http", "https"):
                 raise SaasException(
-                    "Invalid Splunk URL: scheme must be http or https",
-                    code="invalid_url"
+                    (
+                        f"Invalid Splunk URL: scheme '{parsed.scheme}' not "
+                        f"supported, must be http or https"
+                    ),
+                    code="invalid_url_scheme"
                 )
                 
+            # Validate hostname
             if not parsed.hostname:
                 raise SaasException(
                     "Invalid Splunk URL: hostname is required",
-                    code="invalid_url"
+                    code="invalid_url_hostname"
                 )
+                
+            # Validate port
+            port = parsed.port
+            if port is None:
+                port = DEFAULT_SPLUNK_PORT  # Default Splunk management port
+            else:
+                if not isinstance(port, int) or port <= 0 or port > 65535:
+                    raise SaasException(
+                        (
+                            f"Invalid Splunk URL: port '{port}' must be "
+                            f"between 1 and 65535"
+                        ),
+                        code="invalid_url_port"
+                    )
+                    
+            # Security check: warn if using HTTP
+            if parsed.scheme == "http":
+                Log.warning(
+                    "Using HTTP scheme for Splunk connection - "
+                    "consider HTTPS for security"
+                )
+                
+            # Validate no unexpected URL components
+            if parsed.path and parsed.path != '/':
+                Log.warning(
+                    f"URL contains path component '{parsed.path}' which will be ignored"
+                )
+            if parsed.query:
+                Log.warning(
+                    f"URL contains query parameters '{parsed.query}' which will be ignored"
+                )
+            if parsed.fragment:
+                Log.warning(
+                    f"URL contains fragment '{parsed.fragment}' which will be ignored"
+                )
+                
+            Log.debug(
+                f"Validated Splunk URL: {parsed.scheme}://{parsed.hostname}:{port}"
+            )
+            return parsed.hostname, port
                 
         except SaasException:
             # Re-raise SaasExceptions as-is
             raise
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             raise SaasException(
                 f"Invalid Splunk URL format: {str(e)}",
-                code="invalid_url"
+                code="invalid_url_format"
             ) from e
-
-
 
     @property
     def service(self) -> client.Service:
@@ -272,17 +363,12 @@ class SaasPlugin(SaasPluginBase):
         if self._service is None:
             try:
                 splunk_host = self.get_config("splunk_host")
-                self.validate_splunk_url(splunk_host)
-                
-                # Parse URL to get components
-                parsed_url = urlparse(splunk_host)
-                host = parsed_url.hostname
-                port = (parsed_url.port or 
-                        (8089 if parsed_url.scheme == "https" else 8089))
-                scheme = parsed_url.scheme
+                host, port = self.validate_splunk_url(splunk_host)
+                scheme = urlparse(splunk_host).scheme
                 
                 # Get SSL certificate content if provided
                 cert_content = self.get_config("ssl_content")
+
                 # Get admin credentials for connection
                 admin_username = self.get_config("username")
                 admin_password = self.get_config("password")
@@ -297,46 +383,102 @@ class SaasPlugin(SaasPluginBase):
                     "verify": self.verify_ssl
                 }
                 
-                # Handle SSL certificate content using the working approach
                 if cert_content and cert_content.strip():
                     Log.debug("Custom SSL certificate provided")
                     try:
-                        # Create SSL context with custom certificate
                         ssl_context = self.create_ssl_context(cert_content, True)
                         if ssl_context:
-                            Log.info("Custom SSL certificate validated successfully")
-                            # Use the context parameter as in your working code
+                            Log.info(
+                                "Custom SSL certificate validated successfully"
+                            )
                             connect_args["context"] = ssl_context
-                            Log.debug("Added custom SSL context to connection args")
+                            Log.debug(
+                                "Added custom SSL context to connection args"
+                            )
                         else:
-                            Log.warning("Failed to create SSL context, "
-                                       "using standard verification")
+                            Log.warning(
+                                "Failed to create SSL context, "
+                                "using standard verification"
+                            )
                             
-                    except Exception as cert_error:  # pylint: disable=broad-except
-                        Log.error(f"SSL certificate processing failed: {cert_error}")
+                    except (ssl.SSLError, ValueError, TypeError) as cert_error:
+                        Log.error(
+                            f"SSL certificate processing failed: {cert_error}"
+                        )
                         Log.warning("Using standard SSL verification")
                 else:
                     Log.debug("No custom SSL certificate provided")
                     if not self.verify_ssl:
-                        Log.warning("SSL verification is disabled - "
-                                   "connection may be insecure")
+                        Log.warning(
+                            "SSL verification is disabled - "
+                            "connection may be insecure"
+                        )
                 
-                # Connect to Splunk using the working approach
                 self._service = client.connect(**connect_args)
                 Log.debug("Connected to Splunk management port.")
             except HTTPError as he:
-                if he.status == 401:
-                    Log.error(f"Authentication failed connecting to Splunk: {he}")
-                    raise SaasException(
-                        "Authentication failed. Invalid credentials."
-                    ) from he
-                elif he.status == 400:
-                    Log.error(f"Bad request when connecting to Splunk: {he}")
-                    raise SaasException("Bad request when connecting to Splunk.") from he
+                self._handle_http_error(he, "while connecting to Splunk")
             except Exception as e:
                 Log.error(f"Failed to connect to Splunk: {e}")
                 raise SaasException(f"Failed to connect to Splunk: {e}") from e
         return self._service
+
+    def _handle_http_error(
+        self, http_error: HTTPError, operation: str
+    ) -> None:
+        """Handle HTTP errors with appropriate error codes and messages.
+        
+        Args:
+            http_error: The HTTP error to handle
+            operation: Description of the operation that failed
+            
+        Raises:
+            SaasException: Always raises with appropriate error details
+        """
+        status_code = http_error.status
+        
+        if status_code == 401:
+            Log.error(f"Authentication failed {operation}: {http_error}")
+            raise SaasException(
+                (
+                    "Authentication failed. Please verify your Splunk admin "
+                    "credentials."
+                ),
+                code="authentication_failed"
+            ) from http_error
+        elif status_code == 403:
+            Log.error(f"Authorization failed {operation}: {http_error}")
+            raise SaasException(
+                (
+                    "Authorization failed. Insufficient permissions for the "
+                    "operation."
+                ),
+                code="authorization_failed"
+            ) from http_error
+        elif status_code == 400:
+            Log.error(f"Bad request {operation}: {http_error}")
+            raise SaasException(
+                f"Bad request {operation}. Please check your configuration.",
+                code="bad_request"
+            ) from http_error
+        elif status_code == 404:
+            Log.error(f"Resource not found {operation}: {http_error}")
+            raise SaasException(
+                f"Resource not found {operation}.",
+                code="not_found"
+            ) from http_error
+        elif status_code >= 500:
+            Log.error(f"Server error {operation}: {http_error}")
+            raise SaasException(
+                f"Splunk server error {operation}. Please try again later.",
+                code="server_error"
+            ) from http_error
+        else:
+            Log.error(f"HTTP error {operation}: {http_error}")
+            raise SaasException(
+                f"HTTP error ({status_code}) {operation}: {http_error}",
+                code="http_error"
+            ) from http_error
 
     @property
     def can_rollback(self) -> bool:
@@ -373,7 +515,7 @@ class SaasPlugin(SaasPluginBase):
             user_entity = self.service.users[username]
             user_entity.update(password=password.value)
             Log.info(f"Password changed successfully for user: {username}")
-            self._service = None
+            self._close_service_connection()
         except HTTPError as he:
             if he.status == 403:
                 Log.error(f"Authorization failed changing password for "
@@ -420,7 +562,22 @@ class SaasPlugin(SaasPluginBase):
             )
 
         Log.info("Rolling back password change for Splunk user")
-        assert self.user.prior_password is not None  # for type checkers
-        self._change_user_password(self.user.prior_password)
-        Log.debug(f"Password rollback completed successfully for "
-                 f"user {self.user.username.value}")
+        if self.user.prior_password is not None:
+            self._change_user_password(self.user.prior_password)
+            Log.debug(f"Password rollback completed successfully for "
+                    f"user {self.user.username.value}")
+    
+    def _close_service_connection(self) -> None:
+        """Properly close the Splunk service connection."""
+        if self._service is not None:
+            try:
+                # The Splunk SDK doesn't have an explicit close method
+                # but we can logout to clean up the session
+                if hasattr(self._service, 'logout'):
+                    self._service.logout()
+                    Log.debug("Logged out from Splunk service")
+            except Exception as e:
+                Log.warning(f"Error during service cleanup: {e}")
+            finally:
+                self._service = None
+                Log.debug("Splunk service connection cleared")
