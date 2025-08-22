@@ -1,0 +1,7 @@
+# Test requirements for OpenSearch User Password Rotation Plugin
+
+# Main dependency
+opensearch-py>=3.0.0
+
+# Testing dependencies
+pytest>=8.4.1
