@@ -304,11 +304,11 @@ class SplunkTokenPluginTest(SplunkTokenTestBase):
         
         self.assertEqual(result, "https://localhost:8089/test/path")
 
-    @patch("requests.get")
-    def test_make_http_request_get(self, mock_get):
+    @patch("requests.request")
+    def test_make_http_request_get(self, mock_request):
         """Test HTTP GET request."""
         mock_response = self.create_mock_response(200, {"result": "success"})
-        mock_get.return_value = mock_response
+        mock_request.return_value = mock_response
         
         plugin = self.plugin()
         plugin._verify_param = True
@@ -316,13 +316,13 @@ class SplunkTokenPluginTest(SplunkTokenTestBase):
         result = plugin._make_http_request("GET", "https://test.com", {"Authorization": "Bearer token"})
         
         self.assertEqual(result, mock_response)
-        mock_get.assert_called_once()
+        mock_request.assert_called_once()
 
-    @patch("requests.post")
-    def test_make_http_request_post(self, mock_post):
+    @patch("requests.request")
+    def test_make_http_request_post(self, mock_request):
         """Test HTTP POST request."""
         mock_response = self.create_mock_response(201, {"token": "new_token"})
-        mock_post.return_value = mock_response
+        mock_request.return_value = mock_response
         
         plugin = self.plugin()
         plugin._verify_param = True
@@ -335,13 +335,13 @@ class SplunkTokenPluginTest(SplunkTokenTestBase):
         )
         
         self.assertEqual(result, mock_response)
-        mock_post.assert_called_once()
+        mock_request.assert_called_once()
 
-    @patch("requests.delete")
-    def test_make_http_request_delete(self, mock_delete):
+    @patch("requests.request")
+    def test_make_http_request_delete(self, mock_request):
         """Test HTTP DELETE request."""
         mock_response = self.create_mock_response(200)
-        mock_delete.return_value = mock_response
+        mock_request.return_value = mock_response
         
         plugin = self.plugin()
         plugin._verify_param = True
@@ -354,7 +354,7 @@ class SplunkTokenPluginTest(SplunkTokenTestBase):
         )
         
         self.assertEqual(result, mock_response)
-        mock_delete.assert_called_once()
+        mock_request.assert_called_once()
 
     def test_make_http_request_unsupported_method(self):
         """Test HTTP request with unsupported method."""

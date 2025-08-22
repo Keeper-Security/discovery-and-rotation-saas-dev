@@ -176,8 +176,8 @@ class SaasPlugin(SaasPluginBase):
             stripped_content = cert_content.strip()
 
             # Check if certificate contains valid headers and footers
-            has_begin_marker = CERTIFICATE_BEGIN_MARKER in stripped_content
-            has_end_marker = CERTIFICATE_END_MARKER in stripped_content
+            has_begin_marker = stripped_content.startswith(CERTIFICATE_BEGIN_MARKER)
+            has_end_marker = stripped_content.endswith(CERTIFICATE_END_MARKER)
 
             if has_begin_marker and has_end_marker:
                 Log.debug("Certificate has valid markers - normalizing format")
@@ -304,14 +304,12 @@ class SaasPlugin(SaasPluginBase):
         if data is not None:
             request_kwargs["data"] = data
 
-        if method.upper() == "GET":
-            return requests.get(**request_kwargs)
-        elif method.upper() == "POST":
-            return requests.post(**request_kwargs)
-        elif method.upper() == "DELETE":
-            return requests.delete(**request_kwargs)
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+        valid_methods = {"GET", "POST", "DELETE"}
+        method_upper = method.upper()
+        if method_upper not in valid_methods:
+            raise ValueError(f"Unsupported HTTP method: {method_upper}")
+        
+        return requests.request(method=method_upper, **request_kwargs)
 
     def _get_auth_headers(self, content_type: str = None) -> dict:
         """Get authorization headers for API requests.
