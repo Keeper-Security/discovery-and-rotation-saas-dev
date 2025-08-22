@@ -1,0 +1,2 @@
+splunk-sdk>=2.0.0
+pytest>=8.4.0
