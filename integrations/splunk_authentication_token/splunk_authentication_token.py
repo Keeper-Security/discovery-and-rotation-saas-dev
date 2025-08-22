@@ -118,13 +118,12 @@ class SaasPlugin(SaasPluginBase):
                    .replace('\r', '')
                    .replace(' ', '')
                    .replace('\t', ''))
-        # Find certificate boundaries
-        begin_marker = "-----BEGINCERTIFICATE-----"
-        end_marker = "-----ENDCERTIFICATE-----"
-        if begin_marker not in cleaned or end_marker not in cleaned:
+
+        if not (cleaned.startswith(CERTIFICATE_BEGIN_MARKER)
+            and cleaned.endswith(CERTIFICATE_END_MARKER)):
             return cert_content
-        start_idx = cleaned.find(begin_marker) + len(begin_marker)
-        end_idx = cleaned.find(end_marker)
+        start_idx = cleaned.find(CERTIFICATE_BEGIN_MARKER) + len(CERTIFICATE_BEGIN_MARKER)
+        end_idx = cleaned.find(CERTIFICATE_END_MARKER)
         cert_data = cleaned[start_idx:end_idx]
         # Format with proper line breaks (64 characters per line)
         formatted_lines = []
@@ -298,7 +297,8 @@ class SaasPlugin(SaasPluginBase):
             "url": url,
             "headers": headers,
             "verify": self._verify_param,
-            "timeout": timeout
+            "timeout": timeout,
+            "params": {"output_mode": "json"}
         }
 
         if data is not None:
@@ -349,34 +349,22 @@ class SaasPlugin(SaasPluginBase):
             SaasException: Custom exception based on status code.
         """
         status = response.status_code
-        message = response.text.strip()
+        message = response.json()
 
         Log.error(f"HTTP {status} during {action}: {message}")
 
         if status == 400:
-            msg = f"Bad Request while {action}."
-            Log.error(msg=msg)
-            raise SaasException(msg=msg, code="bad_request")
+            raise SaasException(f"Bad Request while {action}.", code="bad_request")
         elif status == 401:
-            msg = f"Unauthorized access while {action}."
-            Log.error(msg=msg)
-            raise SaasException(msg=msg, code="unauthorized")
+            raise SaasException(f"Unauthorized access while {action}.", code="unauthorized")
         elif status == 403:
-            msg = f"Forbidden: Access denied while {action}."
-            Log.error(msg=msg)
-            raise SaasException(msg=msg, code="forbidden")
+            raise SaasException(f"Forbidden: Access denied while {action}.", code="forbidden")
         elif status == 404:
-            msg = f"Resource not found while {action}."
-            Log.error(msg=msg)
-            raise SaasException(msg=msg, code="not_found")
+            raise SaasException(f"Resource not found while {action}.", code="not_found")
         elif status == 500:
-            msg = f"Server error while {action}."
-            Log.error(msg=msg)
-            raise SaasException(msg=msg, code="server_error")
+            raise SaasException(f"Server error while {action}.", code="server_error")
         else:
-            msg = f"Unhandled HTTP error ({status}) while {action}."
-            Log.error(msg=msg)
-            raise SaasException(msg=msg, code="http_error")
+            raise SaasException(f"Unhandled HTTP error ({status}) while {action}.", code="http_error")
 
 
     def _generate_token(self, audience: str, name: str) -> str:
@@ -392,7 +380,7 @@ class SaasPlugin(SaasPluginBase):
         Raises:
             SaasException: If token generation fails
         """
-        url = self._get_url(f"{TOKEN_ENDPOINT}?output_mode=json")
+        url = self._get_url(f"{TOKEN_ENDPOINT}")
         headers = self._get_auth_headers("application/x-www-form-urlencoded")
         data = {
             "name": name,
@@ -402,8 +390,11 @@ class SaasPlugin(SaasPluginBase):
         try:
             response = self._make_http_request("POST", url, headers, data)
             if response.status_code == 201:
-                json_data = response.json()
-                new_token = json_data["entry"][0]["content"]["token"]
+                try:
+                    json_data = response.json()
+                    new_token = json_data["entry"][0]["content"]["token"]
+                except (KeyError, ValueError, IndexError) as e:
+                    raise SaasException(f"Failed to parse token response: {e}") from e
                 Log.info("New token generated successfully.")
                 return new_token
             else:
@@ -439,7 +430,7 @@ class SaasPlugin(SaasPluginBase):
         Returns:
             bool: True if token exists, False otherwise
         """
-        url = self._get_url(f"{TOKEN_ENDPOINT}/{token_id}?output_mode=json")
+        url = self._get_url(f"{TOKEN_ENDPOINT}/{token_id}")
         headers = self._get_auth_headers()
         try:
             response = self._make_http_request("GET", url, headers)
