@@ -1,7 +1,13 @@
-# KeeperPAM Rotation Plugin Development Environment
+![KeeperPAM Rotation Plugin Development Environment Header](https://github.com/user-attachments/assets/d56d224f-ffc4-48d3-a330-3ac3f08f46c0)
+
+# KeeperPAM SaaS Rotation Plugin Development Environment
 
 This is the development environment to build and test plugins for
 KeeperPAM automated credential rotations.
+
+## Documentation
+
+See: [KeeperPAM SaaS Rotation Plugin Documentation](https://docs.keeper.io/en/keeperpam/privileged-access-manager/password-rotation/rotation-use-cases/saas-plugins)
 
 ## Setup
 
