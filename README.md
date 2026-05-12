@@ -15,7 +15,7 @@ Currently, the setup guide is focused on Linux and macOS.
 
 ### Get the Development Environment
 
-It is assumed that Python 3.8, or greater, has been installed on your system.
+It is assumed that Python 3.11, or greater, has been installed on your system.
 The setup will create a Python virtual environment that needs to be activated before
   working on the plugin.
 
