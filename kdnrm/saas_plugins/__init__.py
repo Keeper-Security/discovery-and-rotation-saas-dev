@@ -12,11 +12,12 @@ if TYPE_CHECKING:
 
 class SaasPluginBase:
 
-    name = "NA"
-    summary = ""
-    readme = None
-    author = None
-    email = None
+    name: str = "NA"
+    summary: str = ""
+    readme: Optional[str] = None
+    author: Optional[str] = None
+    email: Optional[str] = None
+    allow_non_admin: bool = False
 
     @classmethod
     def requirements(cls) -> List[str]:

@@ -107,7 +107,7 @@ def config_command(file, shared_folder_uid, title, config):
     storage = FileKeyValueStorage()
     sm = SecretsManager(config=storage)
 
-    new_record = RecordCreate("login", title=title)
+    new_record = RecordCreate("saasConfiguration", title=title)
     new_record.fields = []
     new_record.custom = fields
     record_uid = sm.create_secret(shared_folder_uid, new_record)
