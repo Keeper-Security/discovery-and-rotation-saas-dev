@@ -91,7 +91,7 @@ Copy the `hello_world.py` file from the `examples` directory to your work direct
 
 ```shell
 cd /path/to/my_work_dir/hello_world
-cp /path/to/discovery-and-rotation-saas-dev/exmaples/hello_world.py .
+cp /path/to/discovery-and-rotation-saas-dev/examples/hello_world.py .
 ```
 
 ### SaaS Config Record
