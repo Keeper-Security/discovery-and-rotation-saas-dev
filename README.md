@@ -5,11 +5,11 @@
 This is the development environment to build and test plugins for
 KeeperPAM automated credential rotations.
 
-## Documentation
+## Documentation 
 
 See: [KeeperPAM SaaS Rotation Plugin Documentation](https://docs.keeper.io/en/keeperpam/privileged-access-manager/password-rotation/rotation-use-cases/saas-plugins)
 
-## Setup
+## Setup step
 
 Currently, the setup guide is focused on Linux and macOS. 
 
