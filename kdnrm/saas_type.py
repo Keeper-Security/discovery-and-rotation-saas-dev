@@ -28,7 +28,7 @@ class SaasConfigItem(BaseModel):
 # We only want to give the rotation the information it needs.
 class Field(BaseModel):
     type: str
-    label: str
+    label: Optional[str] = None
     values: List[Any]
 
 
@@ -56,18 +56,18 @@ class SaasUser(BaseModel):
 
 
 class AwsConfig(BaseModel):
-    aws_access_key_id: Secret
-    aws_secret_access_key: Secret
+    aws_access_key_id: Optional[Secret] = None
+    aws_secret_access_key: Optional[Secret] = None
     region_names: List[str] = []
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class AzureConfig(BaseModel):
-    subscription_id: Secret
-    tenant_id: Secret
-    application_id: Secret
-    client_secret: Secret
+    subscription_id: Optional[Secret] = None
+    tenant_id: Optional[Secret] = None
+    application_id: Optional[Secret] = None
+    client_secret: Optional[Secret] = None
     resource_groups: List[str] = []
     authority: Optional[str] = None
     graph_endpoint: Optional[str] = None
@@ -88,6 +88,35 @@ class DomainConfig(BaseModel):
 
 class NetworkConfig(BaseModel):
     cidrs: List[str] = []
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class GcpConfig(BaseModel):
+    service_account_key: Optional[Secret] = None
+    google_admin_email: Optional[Secret] = None
+    region_names: List[str] = []
+    gcp_domain: Optional[str] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class GitHubConfig(BaseModel):
+    github_token: Optional[Secret] = None
+    github_owner: Optional[str] = None
+    github_repos: List[str] = []
+    github_scope: str = "repository"
+    github_org_visibility: str = "all"
+    github_base_url: str = "https://api.github.com"
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class OktaConfig(BaseModel):
+    okta_access_id: Optional[str] = None
+    okta_access_url: Optional[str] = None
+    okta_access_user: Optional[str] = None
+    okta_access_apikey: Optional[Secret] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

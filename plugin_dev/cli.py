@@ -2,7 +2,8 @@ from __future__ import annotations
 import click
 import importlib.util
 from kdnrm.log import Log
-from kdnrm.saas_type import SaasUser, Field, AwsConfig, AzureConfig, DomainConfig, NetworkConfig
+from kdnrm.saas_type import (SaasUser, Field, AwsConfig, AzureConfig, DomainConfig, NetworkConfig, GcpConfig,
+                             OktaConfig)
 from kdnrm.secret import Secret
 from kdnrm.utils import value_to_boolean
 from keeper_secrets_manager_core import SecretsManager
@@ -13,7 +14,7 @@ import traceback
 import sys
 import os
 from colorama import Fore, Style
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Optional, Any, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
@@ -22,13 +23,15 @@ if TYPE_CHECKING:
 
 def load_module_from_path(module_name, file_path):
 
-    if os.path.exists(file_path) is False:
+    if not os.path.exists(file_path):
         raise Exception(f"The plugin {file_path} does not exist.")
 
     spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    if spec is not None and spec.loader is not None:
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    raise Exception(f"Could not load the module {module_name} from {file_path}.")
 
 
 def _get_field_value(item: SaasConfigItem) -> dict:
@@ -54,7 +57,7 @@ def _get_field_value(item: SaasConfigItem) -> dict:
     if field_type in ["url", "int", "number", "bool", "enum"]:
         field_type = "text"
 
-    field_args = {
+    field_args: dict[str, Any] = {
         "type": field_type,
         "label": item.label,
         "value": []
@@ -125,26 +128,30 @@ def config_command(file, shared_folder_uid, title, config):
 @click.option('--old-password',  type=str, help="Old password")
 @click.option('--no-old-password', is_flag=True, help="Do not use old password")
 @click.option('--config', type=str, help='KSM configuration file', required=False)
+@click.option('--extra-record-uid', '-e',  type=str, help='Include extra records', required=False, multiple=True)
 def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_password, old_password,
-                no_old_password, config):
+                no_old_password, config, extra_record_uid):
     """Run the plugin"""
 
     Log()
     Log.set_log_level("DEBUG")
 
-    def _gfv(record: Record, label: str, is_secret=False) -> Optional[Any]:
+    def _gfv(record: Record, label: str) -> Optional[str]:
 
         for access in ["get_standard_field_value", "get_custom_field_value"]:
             try:
                 field_value = getattr(record, access)(label, single=True)
                 if field_value is None:
                     return None
-                if is_secret is False:
-                    return field_value
-                else:
-                    return Secret(field_value)
+                return field_value
             except (Exception,):
                 pass
+        return None
+
+    def _gfvs(record: Record, label: str) -> Optional[Secret]:
+        field_value = _gfv(record=record, label=label)
+        if field_value is not None:
+            return Secret(field_value)
         return None
 
     try:
@@ -158,30 +165,59 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
         uids = [user_uid, plugin_config_uid]
         if configuration_uid is not None:
             uids.append(configuration_uid)
+        if extra_record_uid is not None:
+            uids += list(set(extra_record_uid))
 
         records = sm.get_secrets(uids)
 
-        user_record = next((x for x in records if x.uid == user_uid), None)  # type: Record
-        config_record = next((x for x in records if x.uid == plugin_config_uid), None)  # type: Record
+        def _record_lookup(record_uid: str) -> List[Field]:
+            record = next((x for x in records if x.uid == record_uid), None)  # type: Optional[Record]
+            if record is None:
+                raise Exception(f"The record UID {record_uid} could not be found for this gateway.")
+
+            record_fields = []
+            for record_field in record.dict.get("fields", []):
+                record_fields.append(
+                    Field(
+                        type=record_field.get("type", ""),
+                        label=record_field.get("label", ""),
+                        values=record_field.get("value", []),
+                    )
+                )
+            for record_field in record.dict.get("custom", []):
+                record_fields.append(
+                    Field(
+                        type=record_field.get("type", ""),
+                        label=record_field.get("label", ""),
+                        values=record_field.get("value", []),
+                    )
+                )
+
+            return record_fields
+
+        user_record = next((x for x in records if x.uid == user_uid), None)  # type: Optional[Record]
+        config_record = next((x for x in records if x.uid == plugin_config_uid), None)  # type: Optional[Record]
 
         provider_config = None
-        provider_record = next((x for x in records if x.uid == configuration_uid), None)  # type: Record
+        provider_record = next((x for x in records if x.uid == configuration_uid), None)  # type: Optional[Record]
         if provider_record is not None:
             if provider_record.type == "pamAwsConfiguration":
                 provider_config = AwsConfig(
-                    aws_access_key_id=_gfv(provider_record, "pamawsaccesskeyid", True),
-                    aws_secret_access_key=_gfv(provider_record, "pamawsaccesssecretkey", True),
-                    region_names=_gfv(provider_record, "pamawsregionname"),
+                    aws_access_key_id=_gfvs(provider_record, "pamawsaccesskeyid"),
+                    aws_secret_access_key=_gfvs(provider_record, "pamawsaccesssecretkey"),
+                    region_names=[_gfv(provider_record, "pamawsregionname") or "us-east-1"],
                 )
             elif provider_record.type == "pamAzureConfiguration":
                 resource_groups_str = _gfv(provider_record, "pamazureresourcegroup")
+                if resource_groups_str is None:
+                    resource_groups_str = "MyResourceGroup"
                 resource_groups = [x.strip() for x in resource_groups_str.split("\n")]
 
                 provider_config = AzureConfig(
-                    subscription_id=_gfv(provider_record, "pamazuresubscriptionid", True),
-                    tenant_id=_gfv(provider_record, "pamazuretenantid", True),
-                    application_id=_gfv(provider_record, "pamazureclientid", True),
-                    client_secret=_gfv(provider_record, "pamazureclientsecret", True),
+                    subscription_id=_gfvs(provider_record, "pamazuresubscriptionid"),
+                    tenant_id=_gfvs(provider_record, "pamazuretenantid"),
+                    application_id=_gfvs(provider_record, "pamazureclientid"),
+                    client_secret=_gfvs(provider_record, "pamazureclientsecret"),
                     resource_groups=resource_groups,
                     authority=_gfv(provider_record, "Azure Authority FQDN"),
                     graph_endpoint=_gfv(provider_record, "Azure Graph Endpoint"),
@@ -191,15 +227,14 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
             # We need to graph to get the admin user.
             elif provider_record.type == "pamDomainConfiguration":
                 Log.warning("currently cannot get the admin credentials for the domain controller.")
-                host_and_port = _gfv(provider_record, "pamazuresubscriptionid", True),
+                host_and_port = _gfv(provider_record, "pamazuresubscriptionid"),
                 if host_and_port is None:
                     host_and_port = {}
-                hostname = host_and_port.get("hostName")
-                port = None
+                hostname = host_and_port.get("hostName", "hostname not set")
                 try:
-                    port = int(host_and_port.get("port"))
+                    port = int(host_and_port.get("port", 636))
                 except (Exception,):
-                    pass
+                    port = 636
 
                 provider_config = DomainConfig(
                     hostname=hostname,
@@ -211,10 +246,31 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
                 )
             elif provider_record.type == "pamNetworkConfiguration":
                 cidrs_str = _gfv(provider_record, "pamnetworkcidr")
+                if cidrs_str is None:
+                    cidrs_str = "1.2.3.4"
                 cidrs = [x.strip() for x in cidrs_str.split("\n")]
+
                 provider_config = NetworkConfig(
                     cidrs=cidrs
                 )
+            elif provider_record.type == "pamGcpConfiguration":
+
+                provider_config = GcpConfig(
+                    service_account_key=_gfvs(provider_record, "pamserviceaccountkey"),
+                    google_admin_email=_gfvs(provider_record, "pamgcpadminemail"),
+                    region_names=_gfv(provider_record, "pamgcpregionname"),
+                    gcp_domain=_gfv(provider_record, "pamgcpdomain"),
+                )
+            elif provider_record.type == "pamOktaConfiguration":
+
+                provider_config = OktaConfig(
+                    okta_access_id=_gfv(provider_record, "pamOktaId"),
+                    okta_access_url=_gfv(provider_record, "pamOktaUrl"),
+                    okta_access_user=_gfv(provider_record, "pamOktaApiUser"),
+                    okta_access_apikey=_gfvs(provider_record, "pamOktaApiKey"),
+                )
+
+            # Not supporting pamGitHubConfiguration
 
         if user_record is None:
             raise Exception("Could not get the user record.")
@@ -253,6 +309,7 @@ def run_command(file, user_uid, plugin_config_uid, configuration_uid, fail, new_
         plugin = getattr(module, "SaasPlugin")(
             user=user,
             config_record=config_record,
+            record_lookup_func=_record_lookup,
             provider_config=provider_config,
             force_fail=fail
         )

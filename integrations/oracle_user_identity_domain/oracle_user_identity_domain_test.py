@@ -1,11 +1,11 @@
 from __future__ import annotations
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, Mock
 from plugin_dev.test_base import MockRecord
 from kdnrm.secret import Secret
 from kdnrm.log import Log
 from kdnrm.saas_type import SaasUser
-from oracle_user_identity_domain import SaasPlugin
+from .oracle_user_identity_domain import SaasPlugin
 from oci.exceptions import ServiceError
 from typing import Optional
 
@@ -76,14 +76,17 @@ Mz8ZZRoq/wWjM8OytDCSfnDN
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin()
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                plugin = self.plugin()
 
-                plugin.change_password()
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    plugin.change_password()
 
     def test_change_password_success_email(self):
         """
@@ -93,68 +96,77 @@ Mz8ZZRoq/wWjM8OytDCSfnDN
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin(username=Secret("jdoe@hotmail.com"))
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                plugin = self.plugin(username=Secret("jdoe@hotmail.com"))
 
-                plugin.change_password()
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    plugin.change_password()
 
     def test_change_password_fail_no_user(self):
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin()
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
+                plugin = self.plugin()
 
-                mock_client_obj.patch_user.side_effect = [
-                    ServiceError(
-                        status=404,
-                        code=None,
-                        headers={},
-                        message="Yeah not found"
-                    )
-                ]
-                mock_client.return_value = mock_client_obj
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
 
-                try:
-                    plugin.change_password()
-                    self.fail("should have failed")
-                except Exception as err:
-                    self.assertIn("The user was not found in the Identity Domain", str(err))
+                    mock_client_obj.patch_user.side_effect = [
+                        ServiceError(
+                            status=404,
+                            code=None,
+                            headers={},
+                            message="Yeah not found"
+                        )
+                    ]
+                    mock_client.return_value = mock_client_obj
+
+                    try:
+                        plugin.change_password()
+                        self.fail("should have failed")
+                    except Exception as err:
+                        self.assertIn("The user was not found in the Identity Domain", str(err))
 
     def test_change_password_fail_general(self):
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin()
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
+                plugin = self.plugin()
 
-                mock_client_obj.patch_user.side_effect = [
-                    ServiceError(
-                        status=500,
-                        code=None,
-                        headers={},
-                        message="I broke",
-                    )
-                ]
-                mock_client.return_value = mock_client_obj
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
 
-                try:
-                    plugin.change_password()
-                    self.fail("should have failed")
-                except Exception as err:
-                    self.assertIn("I broke", str(err))
+                    mock_client_obj.patch_user.side_effect = [
+                        ServiceError(
+                            status=500,
+                            code=None,
+                            headers={},
+                            message="I broke",
+                        )
+                    ]
+                    mock_client.return_value = mock_client_obj
+
+                    try:
+                        plugin.change_password()
+                        self.fail("should have failed")
+                    except Exception as err:
+                        self.assertIn("I broke", str(err))
 
 
     def test_pem_key_with_junk(self):
@@ -165,235 +177,259 @@ Mz8ZZRoq/wWjM8OytDCSfnDN
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin(
-                field_values = {
-                    "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
-                    "Admin OCID": "ocid1.user.oc1..aaaaaaaaXXXXXX",
-                    "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
-                    "Private Key Content": self.fake_prv_key + "\n" + "OCI_API_KEY",
-                    "Tenancy OCID": "ocid1.tenancy.oc1..aaaaaaaaXXXXXX",
-                    "Home Region": "us-sanjose-1"
-                }
-            )
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                plugin = self.plugin(
+                    field_values = {
+                        "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
+                        "Admin OCID": "ocid1.user.oc1..aaaaaaaaXXXXXX",
+                        "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
+                        "Private Key Content": self.fake_prv_key + "\n" + "OCI_API_KEY",
+                        "Tenancy OCID": "ocid1.tenancy.oc1..aaaaaaaaXXXXXX",
+                        "Home Region": "us-sanjose-1"
+                    }
+                )
 
-                plugin.change_password()
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    plugin.change_password()
 
     def test_bad_admin_ocid(self):
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin(
-                field_values={
-                    "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
-                    "Admin OCID": "Admin@hotmail",
-                    "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
-                    "Private Key Content": self.fake_prv_key,
-                    "Tenancy OCID": "ocid1.tenancy.oc1..aaaaaaaaXXXXXX",
-                    "Home Region": "us-sanjose-1"
-                }
-            )
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                plugin = self.plugin(
+                    field_values={
+                        "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
+                        "Admin OCID": "Admin@hotmail",
+                        "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
+                        "Private Key Content": self.fake_prv_key,
+                        "Tenancy OCID": "ocid1.tenancy.oc1..aaaaaaaaXXXXXX",
+                        "Home Region": "us-sanjose-1"
+                    }
+                )
 
-                try:
-                    plugin.change_password()
-                    self.fail("should have failed")
-                except Exception as err:
-                    self.assertIn("The format of the Admin OCID", str(err))
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    try:
+                        plugin.change_password()
+                        self.fail("should have failed")
+                    except Exception as err:
+                        self.assertIn("The format of the Admin OCID", str(err))
 
     def test_bad_key_content(self):
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin(
-                field_values={
-                    "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
-                    "Admin OCID": "ocid1.user.oc1..aaaaaaaaXXXXXX",
-                    "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
-                    "Private Key Content": "BAD KEY",
-                    "Tenancy OCID": "ocid1.tenancy.oc1..aaaaaaaaXXXXXX",
-                    "Home Region": "us-sanjose-1"
-                }
-            )
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                plugin = self.plugin(
+                    field_values={
+                        "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
+                        "Admin OCID": "ocid1.user.oc1..aaaaaaaaXXXXXX",
+                        "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
+                        "Private Key Content": "BAD KEY",
+                        "Tenancy OCID": "ocid1.tenancy.oc1..aaaaaaaaXXXXXX",
+                        "Home Region": "us-sanjose-1"
+                    }
+                )
 
-                try:
-                    plugin.change_password()
-                    self.fail("should have failed")
-                except Exception as err:
-                    self.assertIn("The value in Private Key Content", str(err))
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    try:
+                        plugin.change_password()
+                        self.fail("should have failed")
+                    except Exception as err:
+                        self.assertIn("The value in Private Key Content", str(err))
 
     def test_bad_fingerprint(self):
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin(
-                field_values={
-                    "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
-                    "Admin OCID": "ocid1.user.oc1..aaaaaaaaXXXXXX",
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-                    # Missing a pair
-                    "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
-                    "Private Key Content": self.fake_prv_key,
-                    "Tenancy OCID": "ocid1.tenancy.oc1..aaaaaaaaXXXXXX",
-                    "Home Region": "us-sanjose-1"
-                }
-            )
+                plugin = self.plugin(
+                    field_values={
+                        "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
+                        "Admin OCID": "ocid1.user.oc1..aaaaaaaaXXXXXX",
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                        # Missing a pair
+                        "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
+                        "Private Key Content": self.fake_prv_key,
+                        "Tenancy OCID": "ocid1.tenancy.oc1..aaaaaaaaXXXXXX",
+                        "Home Region": "us-sanjose-1"
+                    }
+                )
 
-                try:
-                    plugin.change_password()
-                    self.fail("should have failed")
-                except Exception as err:
-                    self.assertIn("The value in Public Key Fingerprint", str(err))
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    try:
+                        plugin.change_password()
+                        self.fail("should have failed")
+                    except Exception as err:
+                        self.assertIn("The value in Public Key Fingerprint", str(err))
 
     def test_bad_tenancy_ocid(self):
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin(
-                field_values={
-                    "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
-                    "Admin OCID": "ocid1.user.oc1..aaaaaaaaXXXXXX",
-                    "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
-                    "Private Key Content": self.fake_prv_key,
-                    "Tenancy OCID": "cid1.tenancy.oc1..aaaaaaaaXXXXXX",
-                    "Home Region": "us-sanjose-1"
-                }
-            )
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                plugin = self.plugin(
+                    field_values={
+                        "Domain URL": "https://idcs-XXXXXX.identity.oraclecloud.com:443",
+                        "Admin OCID": "ocid1.user.oc1..aaaaaaaaXXXXXX",
+                        "Public Key Fingerprint": "99:99:99:99:99:99:99:99:99:99:99:99:99:99:99:99",
+                        "Private Key Content": self.fake_prv_key,
+                        "Tenancy OCID": "cid1.tenancy.oc1..aaaaaaaaXXXXXX",
+                        "Home Region": "us-sanjose-1"
+                    }
+                )
 
-                try:
-                    plugin.change_password()
-                    self.fail("should have failed")
-                except Exception as err:
-                    self.assertIn("The format of the Tenancy OCID", str(err))
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    try:
+                        plugin.change_password()
+                        self.fail("should have failed")
+                    except Exception as err:
+                        self.assertIn("The format of the Tenancy OCID", str(err))
 
     def test_can_rollback_true(self):
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin()
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
+                plugin = self.plugin()
 
-                policy = MagicMock()
-                policy.num_passwords_in_history = None
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
 
-                resources = MagicMock()
-                resources.resources = [
-                    policy
-                ]
+                    policy = MagicMock()
+                    policy.num_passwords_in_history = None
 
-                data = MagicMock()
-                data.data = resources
+                    resources = MagicMock()
+                    resources.resources = [
+                        policy
+                    ]
 
-                mock_client_obj.list_password_policies = MagicMock()
-                mock_client_obj.list_password_policies.return_value = data
+                    data = MagicMock()
+                    data.data = resources
 
-                mock_client.return_value = mock_client_obj
+                    mock_client_obj.list_password_policies = MagicMock()
+                    mock_client_obj.list_password_policies.return_value = data
 
-                self.assertTrue(plugin.can_rollback)
+                    mock_client.return_value = mock_client_obj
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
+                    self.assertTrue(plugin.can_rollback)
 
-                policy = MagicMock()
-                policy.num_passwords_in_history = 0
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
 
-                resources = MagicMock()
-                resources.resources = [
-                    policy
-                ]
+                    policy = MagicMock()
+                    policy.num_passwords_in_history = 0
 
-                data = MagicMock()
-                data.data = resources
+                    resources = MagicMock()
+                    resources.resources = [
+                        policy
+                    ]
 
-                mock_client_obj.list_password_policies = MagicMock()
-                mock_client_obj.list_password_policies.return_value = data
+                    data = MagicMock()
+                    data.data = resources
 
-                mock_client.return_value = mock_client_obj
+                    mock_client_obj.list_password_policies = MagicMock()
+                    mock_client_obj.list_password_policies.return_value = data
 
-                self.assertTrue(plugin.can_rollback)
+                    mock_client.return_value = mock_client_obj
+
+                    self.assertTrue(plugin.can_rollback)
 
     def test_can_rollback_false(self):
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin()
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
+                plugin = self.plugin()
 
-                policy = MagicMock()
-                policy.num_passwords_in_history = 5
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
 
-                resources = MagicMock()
-                resources.resources = [
-                    policy
-                ]
+                    policy = MagicMock()
+                    policy.num_passwords_in_history = 5
 
-                data = MagicMock()
-                data.data = resources
+                    resources = MagicMock()
+                    resources.resources = [
+                        policy
+                    ]
 
-                mock_client_obj.list_password_policies = MagicMock()
-                mock_client_obj.list_password_policies.return_value = data
+                    data = MagicMock()
+                    data.data = resources
 
-                mock_client.return_value = mock_client_obj
+                    mock_client_obj.list_password_policies = MagicMock()
+                    mock_client_obj.list_password_policies.return_value = data
 
-                self.assertFalse(plugin.can_rollback)
+                    mock_client.return_value = mock_client_obj
+
+                    self.assertFalse(plugin.can_rollback)
 
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin()
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
+                plugin = self.plugin()
 
-                resources = MagicMock()
-                resources.resources = None
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
 
-                data = MagicMock()
-                data.data = resources
+                    resources = MagicMock()
+                    resources.resources = None
 
-                mock_client_obj.list_password_policies = MagicMock()
-                mock_client_obj.list_password_policies.return_value = data
+                    data = MagicMock()
+                    data.data = resources
 
-                mock_client.return_value = mock_client_obj
+                    mock_client_obj.list_password_policies = MagicMock()
+                    mock_client_obj.list_password_policies.return_value = data
 
-                self.assertFalse(plugin.can_rollback)
+                    mock_client.return_value = mock_client_obj
+
+                    self.assertFalse(plugin.can_rollback)
 
     def test_rollback_success(self):
         """
@@ -403,16 +439,19 @@ Mz8ZZRoq/wWjM8OytDCSfnDN
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin(
-                prior_password=Secret("OldPassword")
-            )
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                plugin = self.plugin(
+                    prior_password=Secret("OldPassword")
+                )
 
-                plugin.rollback_password()
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    plugin.rollback_password()
 
     def test_rollback_fail(self):
         """
@@ -422,16 +461,19 @@ Mz8ZZRoq/wWjM8OytDCSfnDN
         with patch("oci.config.validate_config") as mock_validate_config:
             mock_validate_config.return_value = None
 
-            plugin = self.plugin()
+            with patch("oci.signer.Signer") as mock_signer:
+                mock_signer.return_value = MagicMock()
 
-            # Patch the module in the plugin
-            with patch("oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
-                mock_client_obj = MagicMock()
-                mock_client.return_value = mock_client_obj
+                plugin = self.plugin()
 
-                try:
-                    plugin.rollback_password()
-                    self.fail("should have gotten an exception")
-                except Exception as err:
-                    self.assertIn("The current password is not set", str(err))
+                # Patch the module in the plugin
+                with patch("integrations.oracle_user_identity_domain.oracle_user_identity_domain.IdentityDomainsClient") as mock_client:
+                    mock_client_obj = MagicMock()
+                    mock_client.return_value = mock_client_obj
+
+                    try:
+                        plugin.rollback_password()
+                        self.fail("should have gotten an exception")
+                    except Exception as err:
+                        self.assertIn("The current password is not set", str(err))
 
