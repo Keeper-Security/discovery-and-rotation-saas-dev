@@ -15,7 +15,7 @@ Currently, the setup guide is focused on Linux and macOS.
 
 ### Get the Development Environment
 
-It is assumed that Python 3.11, or greater, has been installed on your system.
+It is assumed that Python 3.11+ has been installed on your system.
 The setup will create a Python virtual environment that needs to be activated before
   working on the plugin.
 
@@ -65,14 +65,22 @@ cp /path/to/downloaded/config.json .
 Tests are required.
 There is a minimum limit of 70% coverage.
 Any unit test in the work directory will be run when a PR is created.
-
 If special modules are needed for testing. They can be included in `requirements_test.txt`.
+
+To test coverage locally, run the following commands from your work directory:
+
+```shell
+pip install pytest pytest-cov
+pytest --cov=my_plugin --cov-report=term-missing my_plugin_test.py
+```
+
+The output will show the coverage percentage and any lines that are not covered.
 
 #### Project Structure
 
 The final structure should look like this.
 
-```script
+```text
 % tree
 .
 └── my_plugin
@@ -91,7 +99,7 @@ Copy the `hello_world.py` file from the `examples` directory to your work direct
 
 ```shell
 cd /path/to/my_work_dir/hello_world
-cp /path/to/discovery-and-rotation-saas-dev/exmaples/hello_world.py .
+cp /path/to/discovery-and-rotation-saas-dev/examples/hello_world.py .
 ```
 
 ### SaaS Config Record
@@ -102,7 +110,7 @@ Currently, the SaaS Config record is a **Login** record with custom fields that 
 The command `plugin_test config` is used to make a SaaS Config record in your Vault.
 It will prompt you to enter required and optional values.
 
-```shell
+```text
 (venv) user@machine:~$ plugin_test config --help
 Usage: plugin_test config [OPTIONS]
 
@@ -125,7 +133,7 @@ Options:
 
 Here is an example of the command being run.
 
-```shell
+```text
 (venv) user@machine:~$ plugin_test config -f hello_world.py -t "Hello World Config" -s XXXX
 Required: My Message
 This is the message that will be displayed. The field is required.
@@ -149,9 +157,9 @@ Here is what the record looks like in the Vault.
 
 The following command wil run the plugin.
 
-```shell
+```text
 (venv) user@machine:~$ plugin_test run --help
-Usage: plugin_test run [OPTIONS]
+Usage: python -m plugin_test run [OPTIONS]
 
   Run the plugin
 
@@ -165,8 +173,8 @@ Options:
   --old-password TEXT           Old password
   --no-old-password             Do not use old password
   --config TEXT                 KSM configuration file
+  -e, --extra-record-uid TEXT   Include extra records
   --help                        Show this message and exit.
-                 Show this message and exit.
 ```
 #### Required
 * `-f`, `--file` = The Python file
@@ -186,6 +194,7 @@ Options:
 * `--no-old-password` = Make the old password blank. 
                         Do not read from user record.
 * `--config` = Path to KSM Configuration JSON, if not in the work directory.
+* `--extra-record-uid` = Allow the plugin to access additional records.
 
 Here is an example of the command being run.
 
@@ -261,5 +270,43 @@ To allow your plugin to access the PAM configuration information, the customer w
   add the name of your plugin to this list.
 
 ```
-My Vault> record-update -r <CONFIGURATION RECORD UID> "multiline.Allow SaaS Access=My Plugin\nMy Other Plugin"```
+My Vault> record-update -r <CONFIGURATION RECORD UID> "multiline.Allow SaaS Access=My Plugin\nMy Other Plugin"
+```
+
+## Additional record access in the plugin.
+
+If the plugin requires access to additional records, for example access to an  admin credential, the UID needs
+  to be whitelisted in the configuration.
+
+The gateway does not have the access control found in the Vault and Commander. 
+The gateway has access to all the records since it's not running as a user but a device.
+Any record use in the plugin need to be whitelisted via a custom field on the PAM Configuration record.
+
+```
+My Vault> record-update -r <CONFIGURATION RECORD UID> "multiline.SaaS Record Whitelist=<RECORD UID>"
+```
+
+If multiple records UID, separate with a the text `\n`
+
+```
+My Vault> record-update -r <CONFIGURATION RECORD UID> "multiline.SaaS Record Whitelist=<RECORD UID 1>\n<RECORD UID 2>"
+```
+
+In the plugin, use the methods `get_record_fields` and `get_record_value` to get information from the record.
+
+
+```python
+        admin_record_uid = self.get_config("admin_record_uid")
+        if admin_record_uid is not None:
+            login_values = self.get_record_value(admin_record_uid, field_type="login")
+            password_values = self.get_record_value(admin_record_uid, field_type="password")
+
+            if len(login_values) == 0:
+                raise Exception("Login is blank")
+            if len(password_values) == 0:
+                raise Exception("Password is blank")
+
+            Log.info(f"Special Admin Login: {login_values[0]}")
+            Log.info(f"Special Admin Password: {password_values[0]}")
+
 ```

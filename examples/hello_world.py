@@ -32,6 +32,13 @@ class SaasPlugin(SaasPluginBase):
                 type="secret",
                 default_value="This is a secret",
                 required=False
+            ),
+            SaasConfigItem(
+                id="admin_record_uid",
+                label="Admin UID",
+                desc="This is a UID of a login record.",
+                type="record",
+                required=False
             )
         ]
 
@@ -43,8 +50,27 @@ class SaasPlugin(SaasPluginBase):
 
         Log.info("starting rotating of the Hello World user")
 
-        message = self.get_config("my_msg")
+        # Log all the field in the user record.
+        Log.info(f"user field count = {len(self.user.fields)}")
+        for field in self.user.fields:
+            Log.info(f" * field = {field.label}")
 
+        # If a record UID is set for "Admin UID", get the record and log the login and password.
+        admin_record_uid = self.get_config("admin_record_uid")
+        if admin_record_uid is not None:
+            login_values = self.get_record_value(admin_record_uid, field_type="login")
+            password_values = self.get_record_value(admin_record_uid, field_type="password")
+
+            if len(login_values) == 0:
+                raise Exception("Login is blank")
+            if len(password_values) == 0:
+                raise Exception("Password is blank")
+
+            Log.info(f"Special Admin Login: {login_values[0]}")
+            Log.info(f"Special Admin Password: {password_values[0]}")
+
+        # Update/add a custom field called "Hello World Label" on the  PAM User record.
+        message = self.get_config("my_msg")
         self.add_return_field(
             ReturnCustomField(
                 label="Hello World Label",

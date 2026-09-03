@@ -2,8 +2,9 @@ from __future__ import annotations
 from kdnrm.exceptions import SaasException
 from kdnrm.log import Log
 from kdnrm.utils import value_to_boolean
+from kdnrm.saas_type import Field
 import re
-from typing import Optional, List, Any, TYPE_CHECKING
+from typing import Optional, List, Any, Dict, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from keeper_secrets_manager_core.dto.dtos import Record
@@ -113,6 +114,20 @@ class SaasPluginBase:
                                                 "XXXFIELDXXX": item.label
                                             })
 
+                elif item.type == "record":
+                    if len(value) != 22:
+                        raise SaasException(f"For {self.name}, the field {item.label} did not have a "
+                                            "valid record UID.",
+                                            code="gateway_kdnrm_saas_dt_uid",
+                                            values={
+                                                "XXXSAASXXX": self.name,
+                                                "XXXFIELDXXX": item.label
+                                            })
+
+                    record_fields = self.get_record_fields(value)
+                    if record_fields is not None:
+                        self.record_lookup[value] = record_fields
+
             if item.required is True and value is None:
                 Log.error(f"For {self.name}, the field {item.label} is required, but not set.")
                 raise SaasException(f"For {self.name}, the field {item.label} is required",
@@ -129,15 +144,19 @@ class SaasPluginBase:
                  user: SaasUser,
                  config_record: Record,
                  provider_config: Optional[Any] = None,
-                 force_fail: bool = False):
+                 force_fail: bool = False,
+                 **kwargs):
 
         self.user = user
         self.config_record = config_record
         self.force_fail = force_fail
         self.name = self.__class__.name
+        self._record_lookup_func = kwargs.get("record_lookup_func")
 
         # Get the fields from the record and make a dictionary.
         # The key to the dictionary is the id of the config_schema
+        # If there are any `record` types, they will be populated in a dictionary by their record UID.
+        self.record_lookup = {}  # type: Dict[str, List]
         self.field_config = self._get_config_mapping(config_record)
         self.provider_config = provider_config
 
@@ -146,6 +165,55 @@ class SaasPluginBase:
         # Common name for the remote management instance.
         # Can be used for a persistent client
         self._client = None
+
+    def get_record_fields(self, record_uid: str) -> List[Field]:
+        """
+        Return a list of fields for record.
+        """
+        if self._record_lookup_func is None:
+            raise Exception("The plugin does use record lookup.")
+        return self._record_lookup_func(record_uid)
+
+    def get_record_value(self,
+                         record_uid: str,
+                         field_type: Optional[str] = None,
+                         label: Optional[str] = None,
+                         single_value: bool = True) -> List[Any]:
+
+        """
+        Get the list of values for the field using the field type and/or label.
+
+        The field_type and label are case-sensitive.
+
+        """
+        if self._record_lookup_func is None:
+            raise Exception("The plugin does use record lookup.")
+
+        if record_uid not in self.record_lookup:
+            raise SaasException(f"Could not record UID {record_uid}.")
+
+        value_list = []
+        for field in self.record_lookup[record_uid]:  # type: Field
+            if (field_type is not None
+                    and label is not None
+                    and field.type == field_type
+                    and field.label == label):
+                value_list.append(field.values)
+            elif field_type is not None and field.type == field_type:
+                value_list.append(field.values)
+            elif label is not None and field.label == label:
+                value_list.append(field.values)
+
+        if not single_value:
+            return value_list
+
+        single_value_list = []
+        for value in value_list:
+            if value is None or len(value) == 0:
+                single_value_list.append(None)
+            else:
+                single_value_list.append(value[0])
+        return single_value_list
 
     def get_config(self, key: str, default: Optional[Any] = None) -> Any:
         return self.field_config.get(key, default)
